@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Owner Dashboard - WorkHive</title>
+  <!-- CSS -->
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="../index.html" class="site-logo">Work<span>Hive</span></a>
+      <nav class="main-nav">
+        <ul>
+          <li><a href="dashboard.html">My Dashboard</a></li>
+          <li><a href="properties/create.html">Add Property</a></li>
+          <li><span class="user-greeting">Welcome, Owner</span></li>
+          <li><a href="javascript:void(0)" onclick="handleLogout()">Log Out</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <div class="page-wrapper">
+
+    <h1 class="page-title">My Dashboard</h1>
+    <p class="page-subtitle">Manage your properties and workspaces</p>
+
+    <!-- Success/Error message area -->
+    <div id="dashboardMessage"></div>
+
+    <div class="dashboard-grid">
+
+      <!-- PROPERTIES SECTION -->
+      <div class="dashboard-section">
+        <h3>
+          My Properties
+          <a href="properties/create.html" class="btn btn-secondary btn-sm">+ Add Property</a>
+        </h3>
+
+        <!-- Property list - populated by JavaScript from in-memory array -->
+        <div id="propertiesList" class="cards-grid">
+          <!-- Will be populated by JavaScript -->
+        </div>
+
+        <!-- Empty state (shown when no properties exist) -->
+        <div id="propertiesEmpty" class="dashboard-empty" style="display: none;">
+          <div class="empty-icon">&#127968;</div>
+          <p>You have not listed any properties yet.</p>
+          <a href="properties/create.html" class="btn btn-secondary" style="margin-top: 12px;">Add Your First Property</a>
+        </div>
+      </div>
+
+      <!-- WORKSPACES SECTION -->
+      <div class="dashboard-section">
+        <h3>
+          My Workspaces
+          <a href="workspaces/create.html" class="btn btn-secondary btn-sm">+ Add Workspace</a>
+        </h3>
+
+        <!-- Workspace list - populated by JavaScript -->
+        <div id="workspacesList" class="cards-grid">
+          <!-- Will be populated by JavaScript -->
+        </div>
+
+        <!-- Empty state -->
+        <div id="workspacesEmpty" class="dashboard-empty" style="display: none;">
+          <div class="empty-icon">&#128187;</div>
+          <p>You have not listed any workspaces yet.</p>
+          <a href="workspaces/create.html" class="btn btn-secondary" style="margin-top: 12px;">Add Your First Workspace</a>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="site-footer">
+    <p>&copy; 2026 WorkHive. All rights reserved.</p>
+  </footer>
+
+  <!-- Scripts -->
+
+  <script>
+    // Require owner role on this page
+    document.addEventListener('DOMContentLoaded', function() {
+      const user = getCurrentUser();
+      if (!user || user.role !== 'owner') {
+        window.location.href = '../auth/login.html';
+        return;
+      }
+      
+      // Load and display properties and workspaces
+      loadDashboardData();
+    });
+
+    // Load and display dashboard data
+    function loadDashboardData() {
+      // Load properties
+      const properties = getMyProperties();
+      const propertiesList = document.getElementById('propertiesList');
+      const propertiesEmpty = document.getElementById('propertiesEmpty');
+      
+      if (properties.length === 0) {
+        propertiesList.innerHTML = '';
+        propertiesEmpty.style.display = 'block';
+      } else {
+        propertiesEmpty.style.display = 'none';
+        propertiesList.innerHTML = properties.map(p => `
+          <div class="card">
+            <div class="card-image-placeholder">Property Photo</div>
+            <div class="card-body">
+              <h4>${escapeHtml(p.address)}</h4>
+              <div class="card-meta">&#128205; ${escapeHtml(p.neighborhood)}</div>
+              <div class="card-meta">&#128200; ${p.squareFeet.toLocaleString()} sq ft</div>
+              <div class="card-meta">
+                ${p.hasParking ? '<span class="badge badge-blue">Parking</span> ' : ''}
+                ${p.hasPublicTransit ? '<span class="badge badge-blue">Transit</span>' : ''}
+              </div>
+              <div class="card-price">${p.workspaces.length} Workspace${p.workspaces.length !== 1 ? 's' : ''}</div>
+            </div>
+            <div class="card-actions">
+              <a href="properties/edit.html?id=${p.id}" class="btn btn-secondary btn-sm">Edit</a>
+              <button class="btn btn-danger btn-sm" data-delete-property="${p.id}">Delete</button>
+            </div>
+          </div>
+        `).join('');
+      }
+      
+      // Load workspaces
+      const workspaces = getMyWorkspaces();
+      const workspacesList = document.getElementById('workspacesList');
+      const workspacesEmpty = document.getElementById('workspacesEmpty');
+      
+      if (workspaces.length === 0) {
+        workspacesList.innerHTML = '';
+        workspacesEmpty.style.display = 'block';
+      } else {
+        workspacesEmpty.style.display = 'none';
+        workspacesList.innerHTML = workspaces.map(w => {
+          const leaseTermText = w.leaseTerm.charAt(0).toUpperCase() + w.leaseTerm.slice(1);
+          return `
+          <div class="card">
+            <div class="card-image-placeholder">Workspace Photo</div>
+            <div class="card-body">
+              <h4>${escapeHtml(w.type.charAt(0).toUpperCase() + w.type.slice(1))}</h4>
+              <div class="card-meta">
+                <span class="badge badge-blue">${escapeHtml(w.type.charAt(0).toUpperCase() + w.type.slice(1))}</span>
+              </div>
+              <div class="card-meta">&#128100; Seats: ${w.seatingCapacity}</div>
+              <div class="card-meta">${w.smokingAllowed ? '&#128308; Smoking allowed' : '&#128552; Non-smoking'}</div>
+              <div class="card-meta">Available: ${formatDate(w.availabilityDate)}</div>
+              <div class="card-price">$${w.price} <span>/ ${leaseTermText.toLowerCase()}</span></div>
+            </div>
+            <div class="card-actions">
+              <a href="workspaces/edit.html?id=${w.id}" class="btn btn-secondary btn-sm">Edit</a>
+              <button class="btn btn-danger btn-sm" data-delete-workspace="${w.id}">Delete</button>
+            </div>
+          </div>
+        `;
+        }).join('');
+      }
+      
+      // Setup delete handlers
+      setupPropertyDeleteHandler();
+      setupWorkspaceDeleteHandler();
+      
+      console.log('Dashboard loaded - Properties:', properties.length, 'Workspaces:', workspaces.length);
+    }
+
+    // Escape HTML
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Format date for display
+    function formatDate(dateStr) {
+      if (!dateStr) return 'N/A';
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+  </script>
+
+</body>
+</html>
