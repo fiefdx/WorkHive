@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Edit Workspace - WorkHive</title>
+  <!-- CSS -->
+  <link rel="stylesheet" href="../../css/style.css">
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="../../index.html" class="site-logo">Work<span>Hive</span></a>
+      <nav class="main-nav">
+        <ul>
+          <li><a href="../dashboard.html">My Dashboard</a></li>
+          <li><a href="../properties/create.html">Add Property</a></li>
+          <li><span class="user-greeting">Welcome, Owner</span></li>
+          <li><a href="javascript:void(0)" onclick="handleLogout()">Log Out</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <div class="page-wrapper">
+
+    <h1 class="page-title">Edit Workspace</h1>
+    <p class="page-subtitle">Update your workspace information</p>
+
+    <form id="workspaceEditForm">
+
+      <div id="workspaceMessage"></div>
+
+      <div class="form-section">
+        <h3>Property Selection</h3>
+
+        <div class="form-group">
+          <label for="editPropertyId">Select Property *</label>
+          <select id="editPropertyId" name="propertyId" required>
+            <option value="">-- Choose a property --</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h3>Workspace Details</h3>
+
+        <div class="form-group">
+          <label for="editWorkspaceType">Workspace Type *</label>
+          <select id="editWorkspaceType" name="type" required>
+            <option value="">-- Choose type --</option>
+            <option value="meeting room">Meeting Room</option>
+            <option value="private office">Private Office</option>
+            <option value="desk">Desk (Open Area)</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="editSeatingCapacity">Seating Capacity *</label>
+            <input type="number" id="editSeatingCapacity" name="seatingCapacity" placeholder="6" min="1" required>
+          </div>
+
+          <div class="form-group" style="display: flex; align-items: flex-end; padding-bottom: 8px;">
+            <div class="checkbox-group" style="margin-bottom: 0;">
+              <input type="checkbox" id="editSmokingAllowed" name="smokingAllowed">
+              <label for="editSmokingAllowed">Smoking Allowed</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="editAvailabilityDate">Availability Date *</label>
+            <input type="date" id="editAvailabilityDate" name="availabilityDate" required>
+          </div>
+
+          <div class="form-group">
+            <label for="editLeaseTerm">Lease Term *</label>
+            <select id="editLeaseTerm" name="leaseTerm" required>
+              <option value="">-- Choose term --</option>
+              <option value="day">Day</option>
+              <option value="week">Week</option>
+              <option value="month">Month</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="editPrice">Price *</label>
+          <input type="number" id="editPrice" name="price" placeholder="350" min="0" step="0.01" required>
+          <div class="hint">Price per lease term (e.g., $350/month)</div>
+        </div>
+      </div>
+
+      <div class="form-actions" style="display: flex; gap: 12px; margin-bottom: 40px;">
+        <button type="submit" class="btn btn-primary" style="width: auto; padding: 12px 32px;">Save Changes</button>
+        <a href="../dashboard.html" class="btn" style="background: #eee; color: #333; padding: 12px 32px;">Cancel</a>
+      </div>
+    </form>
+
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="site-footer">
+    <p>&copy; 2026 WorkHive. All rights reserved.</p>
+  </footer>
+
+  <!-- Scripts -->
+
+  <script>
+    // Initialize edit page - load workspace and populate form
+    document.addEventListener('DOMContentLoaded', function() {
+      const user = getCurrentUser();
+      if (!user || user.role !== 'owner') {
+        window.location.href = '../../auth/login.html';
+        return;
+      }
+      
+      // Get workspace ID from URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const workspaceId = parseInt(urlParams.get('id'));
+      
+      if (!workspaceId) {
+        showMessage('Invalid workspace ID.', 'error');
+        return;
+      }
+      
+      // Load workspace data
+      const workspace = getWorkspaceById(workspaceId);
+      if (!workspace) {
+        showMessage('Workspace not found.', 'error');
+        return;
+      }
+      
+      // Populate property dropdown with current property selected
+      populatePropertyDropdown(workspace.propertyId);
+      
+      // Pre-fill other form fields
+      document.getElementById('editWorkspaceType').value = workspace.type;
+      document.getElementById('editSeatingCapacity').value = workspace.seatingCapacity;
+      document.getElementById('editSmokingAllowed').checked = workspace.smokingAllowed;
+      document.getElementById('editAvailabilityDate').value = workspace.availabilityDate;
+      document.getElementById('editLeaseTerm').value = workspace.leaseTerm;
+      document.getElementById('editPrice').value = workspace.price;
+      
+      // Setup form submit handler
+      document.getElementById('workspaceEditForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const updates = {
+          propertyId: formData.get('propertyId'),
+          type: formData.get('type'),
+          seatingCapacity: formData.get('seatingCapacity'),
+          smokingAllowed: formData.get('smokingAllowed') === 'on',
+          availabilityDate: formData.get('availabilityDate'),
+          leaseTerm: formData.get('leaseTerm'),
+          price: formData.get('price')
+        };
+        
+        const result = await handleUpdateWorkspace(workspaceId, updates);
+        
+        if (result.success) {
+          showMessage(result.message, 'success');
+          setTimeout(() => {
+            window.location.href = '../dashboard.html';
+          }, 1500);
+        } else {
+          showMessage(result.message, 'error');
+        }
+      });
+    });
+  </script>
+
+</body>
+</html>
