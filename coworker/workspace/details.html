@@ -245,7 +245,7 @@
       
       // Sidebar price
       document.getElementById('sidebarPrice').innerHTML = `$${data.price} <span>/ ${leaseTermText.toLowerCase()}</span>`;
-      document.getElementById('alternatePricing').textContent = getAlternatePricing(data.price, data.leaseTerm);
+      document.getElementById('alternatePricing').innerHTML = getAlternatePricing(data.price, data.leaseTerm);
       
       // Owner contact
       document.getElementById('ownerName').innerHTML = `<strong>Name:</strong> ${escapeHtml(data.owner.firstName)} ${escapeHtml(data.owner.lastName)}`;
