@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Edit Property - WorkHive</title>
+  <!-- CSS -->
+  <link rel="stylesheet" href="../../css/style.css">
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="../../index.html" class="site-logo">Work<span>Hive</span></a>
+      <nav class="main-nav">
+        <ul>
+          <li><a href="../dashboard.html">My Dashboard</a></li>
+          <li><a href="create.html">Add Property</a></li>
+          <li><span class="user-greeting">Welcome, Owner</span></li>
+          <li><a href="javascript:void(0)" onclick="handleLogout()">Log Out</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <div class="page-wrapper">
+
+    <h1 class="page-title">Edit Property</h1>
+    <p class="page-subtitle">Update your property information</p>
+
+    <form id="propertyEditForm">
+
+      <!-- Success/Error message area -->
+      <div id="propertyMessage"></div>
+
+      <div class="form-section">
+        <h3>Property Details</h3>
+
+        <div class="form-group">
+          <label for="editAddress">Street Address *</label>
+          <input type="text" id="editAddress" name="address" placeholder="123 Main Street" required>
+        </div>
+
+        <div class="form-group">
+          <label for="editNeighborhood">Neighborhood *</label>
+          <input type="text" id="editNeighborhood" name="neighborhood" placeholder="Downtown" required>
+        </div>
+
+        <div class="form-group">
+          <label for="editSquareFeet">Square Feet *</label>
+          <input type="number" id="editSquareFeet" name="squareFeet" placeholder="2500" min="1" required>
+          <div class="hint">Total area of the property in square feet</div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h3>Amenities</h3>
+
+        <div class="checkbox-group">
+          <input type="checkbox" id="editHasParking" name="hasParking">
+          <label for="editHasParking">Has Parking Garage</label>
+        </div>
+
+        <div class="checkbox-group">
+          <input type="checkbox" id="editHasPublicTransit" name="hasPublicTransit">
+          <label for="editHasPublicTransit">Reachable by Public Transportation</label>
+        </div>
+      </div>
+
+      <div class="form-actions" style="display: flex; gap: 12px; margin-bottom: 40px;">
+        <button type="submit" class="btn btn-primary" style="width: auto; padding: 12px 32px;">Save Changes</button>
+        <a href="../dashboard.html" class="btn" style="background: #eee; color: #333; padding: 12px 32px;">Cancel</a>
+      </div>
+    </form>
+
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="site-footer">
+    <p>&copy; 2026 WorkHive. All rights reserved.</p>
+  </footer>
+
+  <!-- Scripts -->
+
+  <script>
+    // Require owner role on this page
+    document.addEventListener('DOMContentLoaded', function() {
+      const user = getCurrentUser();
+      if (!user || user.role !== 'owner') {
+        window.location.href = '../../auth/login.html';
+      }
+    });
+  </script>
+
+</body>
+</html>
