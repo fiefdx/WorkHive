@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Workspace Details - WorkHive</title>
+  <!-- CSS -->
+  <link rel="stylesheet" href="../../css/style.css">
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="../../index.html" class="site-logo">Work<span>Hive</span></a>
+      <nav class="main-nav">
+        <ul>
+          <li><a href="../search.html">Search Workspaces</a></li>
+          <li><span class="user-greeting">Welcome, Coworker</span></li>
+          <li><a href="javascript:void(0)" onclick="handleLogout()">Log Out</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <div class="page-wrapper">
+
+    <!-- Breadcrumb -->
+    <div style="font-size: 14px; color: #666; margin: 24px 0 8px;">
+      <a href="../search.html" style="color: #333; text-decoration: none;">Search Results</a> &rsaquo;
+      Workspace Details
+    </div>
+
+    <div id="loadingMessage" style="text-align: center; padding: 40px;">
+      Loading workspace details...
+    </div>
+
+    <div id="errorMessage" style="display: none; text-align: center; padding: 40px;">
+      <div class="alert alert-error">Workspace not found.</div>
+      <a href="../search.html" class="btn btn-primary" style="margin-top: 16px;">Back to Search</a>
+    </div>
+
+    <div id="detailContainer" class="detail-layout" style="display: none;">
+
+      <!-- MAIN CONTENT AREA -->
+      <div class="detail-main">
+
+        <!-- Image Placeholder -->
+        <div class="detail-image-placeholder">Workspace Photo Gallery (3-5 images)</div>
+
+        <div class="detail-content">
+
+          <!-- Title -->
+          <h2 id="detailTitle">Workspace Title</h2>
+          <div id="detailAddress" class="detail-address">&#128205; Address, Neighborhood</div>
+
+          <!-- Workspace Specs -->
+          <div class="detail-section">
+            <h4>Workspace Details</h4>
+            <div class="detail-specs">
+              <div class="detail-spec">
+                <span class="spec-label">Type</span>
+                <span class="spec-value" id="specType">-</span>
+              </div>
+              <div class="detail-spec">
+                <span class="spec-label">Seating</span>
+                <span class="spec-value" id="specCapacity">-</span>
+              </div>
+              <div class="detail-spec">
+                <span class="spec-label">Smoking</span>
+                <span class="spec-value" id="specSmoking">-</span>
+              </div>
+              <div class="detail-spec">
+                <span class="spec-label">Available From</span>
+                <span class="spec-value" id="specAvailable">-</span>
+              </div>
+              <div class="detail-spec">
+                <span class="spec-label">Lease Term</span>
+                <span class="spec-value" id="specLease">-</span>
+              </div>
+              <div class="detail-spec">
+                <span class="spec-label">Price</span>
+                <span class="spec-value" id="specPrice" style="color: #222; font-size: 20px;">-</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Property Details -->
+          <div class="detail-section">
+            <h4>Property Details</h4>
+            <div class="detail-specs">
+              <div class="detail-spec">
+                <span class="spec-label">Address</span>
+                <span class="spec-value" id="propAddress">-</span>
+              </div>
+              <div class="detail-spec">
+                <span class="spec-label">Neighborhood</span>
+                <span class="spec-value" id="propNeighborhood">-</span>
+              </div>
+              <div class="detail-spec">
+                <span class="spec-label">Size</span>
+                <span class="spec-value" id="propSize">-</span>
+              </div>
+              <div class="detail-spec">
+                <span class="spec-label">Parking</span>
+                <span class="spec-value" id="propParking">-</span>
+              </div>
+              <div class="detail-spec">
+                <span class="spec-label">Public Transit</span>
+                <span class="spec-value" id="propTransit">-</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Description (bonus area for future expansion) -->
+          <div class="detail-section">
+            <h4>Description</h4>
+            <p style="font-size: 14px; color: #555; line-height: 1.7;">
+              Spacious workspace with natural lighting, high-speed internet access,
+              and shared kitchen facilities. Perfect for small teams or focused
+              individual work.
+            </p>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- SIDEBAR -->
+      <div class="detail-sidebar">
+
+        <!-- Price Card -->
+        <div class="price-card">
+          <div id="sidebarPrice" class="price">$0 <span>/ month</span></div>
+          <div style="font-size: 14px; color: #666; margin-top: 4px;">
+            Also available as:
+          </div>
+          <div style="font-size: 14px; color: #666;" id="alternatePricing">
+            Pricing details
+          </div>
+          <button class="btn btn-primary">Contact Owner</button>
+        </div>
+
+        <div class="owner-contact">
+          <h4>Workspace Owner</h4>
+          <div id="ownerName" class="contact-item">
+            <strong>Name:</strong> -
+          </div>
+          <div id="ownerEmail" class="contact-item">
+            <strong>Email:</strong> -
+          </div>
+          <div id="ownerPhone" class="contact-item">
+            <strong>Phone:</strong> -
+          </div>
+        </div>
+
+        <!-- Property Amenities Summary -->
+        <div class="owner-contact" style="margin-top: 16px;">
+          <h4>Property Amenities</h4>
+          <div id="amenitiesList">
+            <!-- Populated by JavaScript -->
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="site-footer">
+    <p>&copy; 2026 WorkHive. All rights reserved.</p>
+  </footer>
+
+  <!-- Scripts -->
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const workspaceId = parseInt(urlParams.get('id'));
+
+    document.addEventListener('DOMContentLoaded', function() {
+      // Require login
+      const user = getCurrentUser();
+      if (!user) {
+        window.location.href = '../../auth/login.html';
+        return;
+      }
+      
+      if (!workspaceId) {
+        document.getElementById('loadingMessage').style.display = 'none';
+        document.getElementById('errorMessage').style.display = 'block';
+        return;
+      }
+      
+      // Load workspace details
+      loadWorkspaceDetails(workspaceId);
+    });
+
+    // Load and display workspace details
+    function loadWorkspaceDetails(id) {
+      const workspace = getWorkspaceById(id);
+      
+      if (!workspace) {
+        document.getElementById('loadingMessage').style.display = 'none';
+        document.getElementById('errorMessage').style.display = 'block';
+        return;
+      }
+      
+      // Enrich with property and owner data
+      const enriched = enrichWorkspaceWithProperty(workspace);
+      
+      if (!enriched || !enriched.property || !enriched.owner) {
+        document.getElementById('loadingMessage').style.display = 'none';
+        document.getElementById('errorMessage').style.display = 'block';
+        return;
+      }
+      
+      // Display data
+      displayWorkspaceDetails(enriched);
+    }
+
+    // Display workspace details on the page
+    function displayWorkspaceDetails(data) {
+      const leaseTermText = data.leaseTerm.charAt(0).toUpperCase() + data.leaseTerm.slice(1);
+      
+      // Title and address
+      document.getElementById('detailTitle').textContent = data.type.charAt(0).toUpperCase() + data.type.slice(1);
+      document.getElementById('detailAddress').innerHTML = `&#128205; ${escapeHtml(data.property.address)}, ${escapeHtml(data.property.neighborhood)}`;
+      
+      // Workspace specs
+      document.getElementById('specType').textContent = data.type.charAt(0).toUpperCase() + data.type.slice(1);
+      document.getElementById('specCapacity').textContent = `${data.seatingCapacity} people`;
+      document.getElementById('specSmoking').textContent = data.smokingAllowed ? 'Allowed' : 'Not Allowed';
+      document.getElementById('specAvailable').textContent = formatDate(data.availabilityDate);
+      document.getElementById('specLease').textContent = leaseTermText;
+      document.getElementById('specPrice').textContent = `$${data.price}/${leaseTermText.toLowerCase()}`;
+      
+      // Property details
+      document.getElementById('propAddress').textContent = data.property.address;
+      document.getElementById('propNeighborhood').textContent = data.property.neighborhood;
+      document.getElementById('propSize').textContent = `${data.property.squareFeet.toLocaleString()} sq ft`;
+      document.getElementById('propParking').textContent = data.property.hasParking ? 'Yes' : 'No';
+      document.getElementById('propTransit').textContent = data.property.hasPublicTransit ? 'Yes' : 'No';
+      
+      // Sidebar price
+      document.getElementById('sidebarPrice').innerHTML = `$${data.price} <span>/ ${leaseTermText.toLowerCase()}</span>`;
+      document.getElementById('alternatePricing').textContent = getAlternatePricing(data.price, data.leaseTerm);
+      
+      // Owner contact
+      document.getElementById('ownerName').innerHTML = `<strong>Name:</strong> ${escapeHtml(data.owner.firstName)} ${escapeHtml(data.owner.lastName)}`;
+      document.getElementById('ownerEmail').innerHTML = `<strong>Email:</strong> ${escapeHtml(data.owner.email)}`;
+      document.getElementById('ownerPhone').innerHTML = `<strong>Phone:</strong> ${formatPhone(data.owner.phone)}`;
+      
+      // Amenities
+      const amenities = [];
+      if (data.property.hasParking) amenities.push('&#128736; Parking Garage Available');
+      if (data.property.hasPublicTransit) amenities.push('&#128666; Public Transit Nearby');
+      amenities.push('&#128187; High-Speed Internet');
+      amenities.push('&#9749; Shared Kitchen');
+      
+      document.getElementById('amenitiesList').innerHTML = amenities.map(a => `<div class="contact-item">${a}</div>`).join('');
+      
+      // Show content, hide loading
+      document.getElementById('loadingMessage').style.display = 'none';
+      document.getElementById('detailContainer').style.display = 'grid';
+    }
+
+    // Get alternate pricing based on lease term
+    function getAlternatePricing(price, leaseTerm) {
+      if (leaseTerm === 'month') {
+        return `$${Math.round(price / 30)}/day &middot; $${Math.round(price / 4)}/week`;
+      } else if (leaseTerm === 'week') {
+        return `$${Math.round(price / 7)}/day &middot; $${price * 4}/month`;
+      } else {
+        return `$${price * 7}/week &middot; $${price * 30}/month`;
+      }
+    }
+
+    // Format date for display
+    function formatDate(dateStr) {
+      if (!dateStr) return 'N/A';
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+
+    // Format phone number
+    function formatPhone(phone) {
+      if (!phone || phone.length < 10) return phone;
+      const cleaned = phone.replace(/\D/g, '');
+      return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
+    }
+
+    // Escape HTML
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  </script>
+
+</body>
+</html>
