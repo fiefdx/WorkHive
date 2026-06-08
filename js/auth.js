@@ -227,24 +227,16 @@ function setupRoleBasedNavigation() {
       greetingEl.textContent = `Welcome, ${user.firstName}`;
     }
     
-    // Setup logout handler on all logout links
+    // Setup logout handler only on links with "Log Out" text
     const logoutLinks = navContainer.querySelectorAll('a');
-    console.log('Found logout links:', logoutLinks.length);
     logoutLinks.forEach(link => {
-      const href = link.getAttribute('href');
       const text = link.textContent.trim();
-      console.log('Link:', href, text);
-      // Check if link is a logout link (points to login page or has logout text)
-      if (href && (href.includes('login.html') || text === 'Log Out')) {
-        console.log('Setting logout handler on:', href);
-        // Only add handler if not already an onclick handler
-        if (!link.getAttribute('onclick')) {
-          link.addEventListener('click', function(e) {
-            console.log('Logout clicked!');
-            e.preventDefault();
-            handleLogout();
-          });
-        }
+      // Only add logout handler to links that say "Log Out"
+      if (text === 'Log Out' && !link.getAttribute('onclick')) {
+        link.addEventListener('click', function(e) {
+          e.preventDefault();
+          handleLogout();
+        });
       }
     });
     
