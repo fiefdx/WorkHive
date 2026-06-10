@@ -163,10 +163,10 @@ function validatePropertyData(data) {
  * Attach to property create/edit form
  */
 function setupPropertyForm() {
-  const form = document.getElementById('propertyForm');
-  if (!form) return;
+  const $form = $('#propertyForm');
+if ($form.length === 0) return;
   
-  form.addEventListener('submit', async function(e) {
+  $form.on('submit', async function(e) {
     e.preventDefault();
     
     const formData = new FormData(form);
@@ -196,7 +196,7 @@ function setupPropertyForm() {
  * Attach to property edit form
  */
 function setupPropertyEditForm() {
-  const form = document.getElementById('propertyEditForm');
+  const $form = $('#propertyEditForm');
   if (!form) return;
   
   // Get property ID from URL
@@ -216,11 +216,11 @@ function setupPropertyEditForm() {
   }
   
   // Pre-fill form
-  document.getElementById('editAddress').value = property.address;
-  document.getElementById('editNeighborhood').value = property.neighborhood;
-  document.getElementById('editSquareFeet').value = property.squareFeet;
-  document.getElementById('editHasParking').checked = property.hasParking;
-  document.getElementById('editHasPublicTransit').checked = property.hasPublicTransit;
+ $('#editAddress').val(property.address);
+$('#editNeighborhood').val(property.neighborhood);
+$('#editSquareFeet').val(property.squareFeet);
+ $('#editHasParking').prop('checked', property.hasParking);
+$('#editHasPublicTransit').prop('checked', property.hasPublicTransit);
   
   // Setup form submit handler
   form.addEventListener('submit', async function(e) {
@@ -252,7 +252,7 @@ function setupPropertyEditForm() {
  * SETUP PROPERTY DELETE HANDLER
  */
 function setupPropertyDeleteHandler() {
-  const deleteButtons = document.querySelectorAll('[data-delete-property]');
+  const deleteButtons = $('[data-delete-property]');
   deleteButtons.forEach(button => {
     button.addEventListener('click', async function() {
       const propertyId = parseInt(this.dataset.deleteProperty);
