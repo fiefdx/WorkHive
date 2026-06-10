@@ -149,6 +149,7 @@ function getMyPropertiesForDropdown() {
 }
 
 /**
+/**
  * VALIDATE WORKSPACE DATA
  * 
  * @param {Object} data - Workspace data to validate
@@ -174,6 +175,15 @@ function validateWorkspaceData(data) {
   
   if (!data.availabilityDate) {
     return { valid: false, error: 'Please select an availability date.' };
+  }
+
+  // Prevent selecting a past date
+  const selectedDate = new Date(data.availabilityDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (selectedDate < today) {
+    return { valid: false, error: 'Availability date cannot be in the past.' };
   }
   
   const validLeaseTerms = ['day', 'week', 'month'];
