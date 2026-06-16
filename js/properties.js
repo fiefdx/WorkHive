@@ -1,166 +1,231 @@
 /**
- * WorkHive - Property Management Module
+ * WorkHive - Properties Module (Phase 2)
  * 
- * Issue #6-10: Owner Lists Property
- * Issue #21-26: Owner Dashboard, Edit, Delete functionality
- * 
- * Functions for managing properties with in-memory storage (Phase 1)
+ * Phase 2: Uses backend API with MongoDB
  */
 
 /**
  * CREATE PROPERTY
- * 
- * @param {Object} propertyData - Property data
- * @returns {Object} - { success: boolean, message: string, property: Object|null }
+ * Uses backend API
  */
-async function handleCreateProperty(propertyData) {
-  const currentUser = getCurrentUser();
-  
-  if (!currentUser || currentUser.role !== 'owner') {
-    return { success: false, message: 'Only owners can create properties.', property: null };
+async function handlePropertyCreation(propertyData, files = null) {
+  // Client-side validation
+  if (!propertyData.address || propertyData.address.trim().length === 0) {
+    return { success: false, message: 'Address is required.', property: null };
+  }
+  if (!propertyData.neighborhood || propertyData.neighborhood.trim().length === 0) {
+    return { success: false, message: 'Neighborhood is required.', property: null };
+  }
+  if (!propertyData.squareFeet || parseInt(propertyData.squareFeet) <= 0) {
+    return { success: false, message: 'Please enter a valid square footage.', property: null };
   }
   
-  // Validate property data
-  const validation = validatePropertyData(propertyData);
-  if (!validation.valid) {
-    return { success: false, message: validation.error, property: null };
-  }
+  // Prepare form data for file upload
+  const formData = new FormData();
+  formData.append('address', propertyData.address);
+  formData.append('neighborhood', propertyData.neighborhood);
+  formData.append('squareFeet', parseInt(propertyData.squareFeet));
+  formData.append('hasParking', propertyData.hasParking || false);
+  formData.append('hasPublicTransit', propertyData.hasPublicTransit || false);
   
-  // Create property
-  const property = createProperty(
-    currentUser.id,
-    propertyData.address,
-    propertyData.neighborhood,
-    propertyData.squareFeet,
-    propertyData.hasParking || false,
-    propertyData.hasPublicTransit || false
-  );
-  
-  return { success: true, message: 'Property listed successfully!', property: property };
-}
-
-/**
- * UPDATE PROPERTY
- * 
- * @param {number} propertyId - Property ID to update
- * @param {Object} updates - Fields to update
- * @returns {Object} - { success: boolean, message: string, property: Object|null }
- */
-async function handleUpdateProperty(propertyId, updates) {
-  const currentUser = getCurrentUser();
-  
-  if (!currentUser || currentUser.role !== 'owner') {
-    return { success: false, message: 'Only owners can update properties.', property: null };
-  }
-  
-  const property = getPropertyById(propertyId);
-  if (!property) {
-    return { success: false, message: 'Property not found.', property: null };
-  }
-  
-  // Check ownership
-  if (property.ownerId !== currentUser.id) {
-    return { success: false, message: 'You can only update your own properties.', property: null };
-  }
-  
-  // Validate updates
-  if (updates.address || updates.neighborhood || updates.squareFeet) {
-    const validation = validatePropertyData(updates);
-    if (!validation.valid) {
-      return { success: false, message: validation.error, property: null };
+  // Add images if provided
+  if (files && files.length > 0) {
+    for (let i = 0; i < files.length; i++) {
+      formData.append('images', files[i]);
     }
   }
   
-  // Update property
-  const updatedProperty = updateProperty(propertyId, updates);
+  // Call backend API with FormData
+  const token = localStorage.getItem('authToken');
+  const response = await fetch(`${API_BASE_URL}/properties`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    body: formData
+  });
   
-  return { success: true, message: 'Property updated successfully!', property: updatedProperty };
-}
-
-/**
- * DELETE PROPERTY
- * 
- * @param {number} propertyId - Property ID to delete
- * @returns {Object} - { success: boolean, message: string }
- */
-async function handleDeleteProperty(propertyId) {
-  const currentUser = getCurrentUser();
+  const result = await response.json();
   
-  if (!currentUser || currentUser.role !== 'owner') {
-    return { success: false, message: 'Only owners can delete properties.' };
+  if (result.success) {
+    return { success: true, message: 'Property listed successfully!', property: result.data.property };
+  } else {
+    return { success: false, message: result.message, property: null };
   }
-  
-  const property = getPropertyById(propertyId);
-  if (!property) {
-    console.log('Property not found:', propertyId);
-    return { success: false, message: 'Property not found.' };
-  }
-  
-  console.log('Property to delete:', property);
-  console.log('Current user:', currentUser);
-  console.log('Property ownerId:', property.ownerId, 'User id:', currentUser.id);
-  
-  // Check ownership
-  if (property.ownerId !== currentUser.id) {
-    return { success: false, message: 'You can only delete your own properties.' };
-  }
-  
-  // Check if property has workspaces
-  const workspaceCount = property.workspaces ? property.workspaces.length : 0;
-  console.log('Workspace count for property:', workspaceCount, 'workspaces:', property.workspaces);
-  if (workspaceCount > 0) {
-    return { 
-      success: false, 
-      message: `Cannot delete property with ${workspaceCount} workspace(s). Please delete workspaces first.` 
-    };
-  }
-  
-  // Delete property
-  deleteProperty(propertyId);
-  console.log('Property deleted successfully');
-  
-  return { success: true, message: 'Property deleted successfully!' };
 }
 
 /**
  * GET OWNER'S PROPERTIES
- * 
- * @returns {Array} - Array of owner's properties
+ * Uses backend API
  */
-function getMyProperties() {
-  const currentUser = getCurrentUser();
-  if (!currentUser || currentUser.role !== 'owner') {
-    return [];
-  }
+async function loadOwnerProperties() {
+  console.log('loadOwnerProperties called');
+  const result = await apiGetMyProperties();
+  console.log('loadOwnerProperties result:', result);
   
-  return getPropertiesByOwnerId(currentUser.id);
+  if (result.success) {
+    return { success: true, properties: result.data.properties };
+  } else {
+    return { success: false, message: result.message };
+  }
 }
 
 /**
- * VALIDATE PROPERTY DATA
- * 
- * @param {Object} data - Property data to validate
- * @returns {Object} - { valid: boolean, error: string|null }
+ * GET ALL PROPERTIES
+ * Uses backend API
  */
-function validatePropertyData(data) {
-  if (!data.address || data.address.trim().length === 0) {
-    return { valid: false, error: 'Address is required.' };
-  }
+async function loadAllProperties() {
+  const result = await apiGetProperties();
   
-  if (!data.neighborhood || data.neighborhood.trim().length === 0) {
-    return { valid: false, error: 'Neighborhood is required.' };
+  if (result.success) {
+    return { success: true, properties: result.data.properties };
+  } else {
+    return { success: false, message: result.message };
   }
-  
-  if (!data.squareFeet || isNaN(data.squareFeet) || data.squareFeet <= 0) {
-    return { valid: false, error: 'Square feet must be a positive number.' };
-  }
-  
-  return { valid: true, error: null };
 }
 
 /**
- * SETUP PROPERTY FORM HANDLER
- * Attach to property create/edit form
+ * GET PROPERTY BY ID
+ * Uses backend API
+ */
+async function loadPropertyById(id) {
+  console.log('loadPropertyById called with ID:', id);
+  const result = await apiGetPropertyById(id);
+  console.log('loadPropertyById result:', result);
+  
+  if (result.success) {
+    return { success: true, property: result.data.property };
+  } else {
+    return { success: false, message: result.message };
+  }
+}
+
+/**
+ * UPDATE PROPERTY
+ * Uses backend API
+ */
+async function handlePropertyUpdate(id, propertyData) {
+  const result = await apiUpdateProperty(id, propertyData);
+  
+  if (result.success) {
+    return { success: true, message: 'Property updated successfully!', property: result.data.property };
+  } else {
+    return { success: false, message: result.message };
+  }
+}
+
+/**
+ * DELETE PROPERTY
+ * Uses backend API (also deletes associated workspaces)
+ */
+async function handlePropertyDelete(id) {
+  if (!confirm('Are you sure you want to delete this property? All associated workspaces will also be deleted.')) {
+    return { success: false, message: 'Deletion cancelled.' };
+  }
+  
+  const result = await apiDeleteProperty(id);
+  
+  if (result.success) {
+    return { success: true, message: 'Property deleted successfully!' };
+  } else {
+    return { success: false, message: result.message };
+  }
+}
+
+/**
+ * RENDER PROPERTY LIST
+ * Renders properties to the DOM
+ */
+function renderPropertyList(properties, containerId, showActions = false) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  
+  if (!properties || properties.length === 0) {
+    container.innerHTML = '<p class="no-data">No properties found.</p>';
+    return;
+  }
+  
+  let html = '<div class="property-list">';
+  
+  properties.forEach(property => {
+    html += `
+      <div class="property-card" data-property-id="${property._id}">
+        <h3>${escapeHtml(property.address)}</h3>
+        <p class="neighborhood">${escapeHtml(property.neighborhood)}</p>
+        <p class="details">
+          <span class="sqft">${property.squareFeet} sq ft</span>
+          ${property.hasParking ? '<span class="amenity parking">Parking</span>' : ''}
+          ${property.hasPublicTransit ? '<span class="amenity transit">Public Transit</span>' : ''}
+        </p>
+    `;
+    
+    if (showActions) {
+      html += `
+        <div class="actions">
+          <button onclick="editProperty('${property._id}')" class="btn btn-edit">Edit</button>
+          <button onclick="deleteProperty('${property._id}')" class="btn btn-delete">Delete</button>
+        </div>
+      `;
+    }
+    
+    html += '</div>';
+  });
+  
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+/**
+ * EDIT PROPERTY - Load property data into form
+ */
+async function editProperty(id) {
+  const result = await loadPropertyById(id);
+  
+  if (result.success) {
+    const property = result.property;
+    
+    // Fill form with property data
+    document.getElementById('address').value = property.address;
+    document.getElementById('neighborhood').value = property.neighborhood;
+    document.getElementById('squareFeet').value = property.squareFeet;
+    document.getElementById('hasParking').checked = property.hasParking;
+    document.getElementById('hasPublicTransit').checked = property.hasPublicTransit;
+    
+    // Store property ID for update
+    document.getElementById('propertyForm').dataset.propertyId = id;
+    
+    // Change form title
+    const formTitle = document.querySelector('h1');
+    if (formTitle) formTitle.textContent = 'Edit Property';
+    
+    // Scroll to form
+    window.scrollTo(0, 0);
+  } else {
+    showMessage(result.message, 'error');
+  }
+}
+
+/**
+ * DELETE PROPERTY - Wrapper for handlePropertyDelete
+ */
+async function deleteProperty(id) {
+  const result = await handlePropertyDelete(id);
+  
+  if (result.success) {
+    showMessage(result.message, 'success');
+    // Reload properties list
+    loadOwnerProperties().then(loadResult => {
+      if (loadResult.success) {
+        renderPropertyList(loadResult.properties, 'propertyList', true);
+      }
+    });
+  } else {
+    showMessage(result.message, 'error');
+  }
+}
+
+/**
+ * SETUP PROPERTY FORM
  */
 function setupPropertyForm() {
   const form = document.getElementById('propertyForm');
@@ -170,6 +235,8 @@ function setupPropertyForm() {
     e.preventDefault();
     
     const formData = new FormData(form);
+    const propertyId = form.dataset.propertyId;
+    
     const propertyData = {
       address: formData.get('address'),
       neighborhood: formData.get('neighborhood'),
@@ -178,126 +245,181 @@ function setupPropertyForm() {
       hasPublicTransit: formData.get('hasPublicTransit') === 'on'
     };
     
-    const result = await handleCreateProperty(propertyData);
+    // Get uploaded files
+    const imageInput = document.getElementById('propertyImages');
+    const files = imageInput ? imageInput.files : null;
+    
+    let result;
+    
+    if (propertyId) {
+      // Update existing property (no file upload for now)
+      result = await handlePropertyUpdate(propertyId, propertyData);
+    } else {
+      // Create new property with file upload
+      result = await handlePropertyCreation(propertyData, files);
+    }
     
     if (result.success) {
       showMessage(result.message, 'success');
-      setTimeout(() => {
-        window.location.href = '../dashboard.html';
-      }, 1500);
-    } else {
-      showMessage(result.message, 'error');
-    }
-  });
-}
-
-/**
- * SETUP PROPERTY EDIT FORM HANDLER
- * Attach to property edit form
- */
-function setupPropertyEditForm() {
-  const form = document.getElementById('propertyEditForm');
-  if (!form) return;
-  
-  // Get property ID from URL
-  const urlParams = new URLSearchParams(window.location.search);
-  const propertyId = parseInt(urlParams.get('id'));
-  
-  if (!propertyId) {
-    showMessage('Invalid property ID.', 'error');
-    return;
-  }
-  
-  // Load property data
-  const property = getPropertyById(propertyId);
-  if (!property) {
-    showMessage('Property not found.', 'error');
-    return;
-  }
-  
-  // Pre-fill form
-  document.getElementById('editAddress').value = property.address;
-  document.getElementById('editNeighborhood').value = property.neighborhood;
-  document.getElementById('editSquareFeet').value = property.squareFeet;
-  document.getElementById('editHasParking').checked = property.hasParking;
-  document.getElementById('editHasPublicTransit').checked = property.hasPublicTransit;
-  
-  // Setup form submit handler
-  form.addEventListener('submit', async function(e) {
-    e.preventDefault();
-    
-    const formData = new FormData(form);
-    const updates = {
-      address: formData.get('address'),
-      neighborhood: formData.get('neighborhood'),
-      squareFeet: formData.get('squareFeet'),
-      hasParking: formData.get('hasParking') === 'on',
-      hasPublicTransit: formData.get('hasPublicTransit') === 'on'
-    };
-    
-    const result = await handleUpdateProperty(propertyId, updates);
-    
-    if (result.success) {
-      showMessage(result.message, 'success');
-      setTimeout(() => {
-        window.location.href = '../dashboard.html';
-      }, 1500);
-    } else {
-      showMessage(result.message, 'error');
-    }
-  });
-}
-
-/**
- * SETUP PROPERTY DELETE HANDLER
- */
-function setupPropertyDeleteHandler() {
-  const deleteButtons = document.querySelectorAll('[data-delete-property]');
-  deleteButtons.forEach(button => {
-    button.addEventListener('click', async function() {
-      const propertyId = parseInt(this.dataset.deleteProperty);
-      console.log('Delete property clicked:', propertyId);
       
-      if (!confirm('Are you sure you want to delete this property? This action cannot be undone.')) {
-        return;
-      }
+      // Clear image preview
+      const preview = document.getElementById('imagePreview');
+      if (preview) preview.innerHTML = '';
       
-      console.log('Deleting property:', propertyId);
-      const result = await handleDeleteProperty(propertyId);
-      console.log('Delete result:', result);
+      // Check if we're on the create page (has propertyForm but no propertyList)
+      const isCreatePage = document.getElementById('propertyForm') && !document.getElementById('propertyList') && !document.getElementById('propertiesList');
       
-      if (result.success) {
-        showMessage(result.message, 'success');
-        // Refresh dashboard data without page reload
-        if (typeof loadDashboardData === 'function') {
-          loadDashboardData();
-        } else {
-          window.location.reload();
-        }
+      if (isCreatePage) {
+        // Redirect to dashboard after successful creation on create page
+        setTimeout(() => {
+          window.location.href = '../dashboard.html';
+        }, 1500);
       } else {
-        showMessage(result.message, 'error');
+        // Reset form and reload list if on dashboard or edit page
+        form.reset();
+        delete form.dataset.propertyId;
+        
+        const formTitle = document.querySelector('h1');
+        if (formTitle) formTitle.textContent = 'List a Property';
+        
+        // Reload properties list if on dashboard
+        if (document.getElementById('propertiesList')) {
+          setTimeout(() => {
+            if (typeof loadDashboardData === 'function') {
+              loadDashboardData();
+            }
+          }, 1000);
+        }
       }
-    });
+    } else {
+      showMessage(result.message, 'error');
+    }
+  });
+}
+
+/**
+ * DELETE PROPERTY IMAGE
+ * @param {string} propertyId - Property ID
+ * @param {number} imageIndex - Index of image to delete
+ */
+async function deletePropertyImage(propertyId, photoIndex) {
+  if (!confirm('Are you sure you want to delete this photo?')) {
+    return { success: false };
+  }
+  
+  const token = localStorage.getItem('authToken');
+  const response = await fetch(`${API_BASE_URL}/properties/${propertyId}/photos/${photoIndex}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  
+  const result = await response.json();
+  
+  if (result.success) {
+    showMessage('Photo deleted successfully', 'success');
+    setTimeout(() => {
+      window.location.reload();
+    }, 1000);
+    return { success: true };
+  } else {
+    showMessage(result.message || 'Failed to delete photo', 'error');
+    return { success: false };
+  }
+}
+
+/**
+ * ESCAPE HTML - Prevent XSS
+ */
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Image preview handler
+function setupImagePreview(inputId, previewId) {
+  const input = document.getElementById(inputId);
+  const preview = document.getElementById(previewId);
+  
+  if (!input || !preview) return;
+  
+  input.addEventListener('change', function(e) {
+    const files = e.target.files;
+    preview.innerHTML = '';
+    
+    if (files && files.length > 0) {
+      Array.from(files).forEach((file, index) => {
+        // Check file type
+        if (!file.type.match('image.*')) {
+          showMessage('Please select image files only.', 'error');
+          return;
+        }
+        
+        // Check file size (5MB limit)
+        if (file.size > 5 * 1024 * 1024) {
+          showMessage(`File ${file.name} is too large. Max 5MB.`, 'error');
+          return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const div = document.createElement('div');
+          div.style.cssText = 'width: 150px; height: 150px; border: 1px solid #ddd; border-radius: 4px; overflow: hidden; position: relative;';
+          div.innerHTML = `
+            <img src="${e.target.result}" style="width: 100%; height: 100%; object-fit: cover;">
+            <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.6); color: white; padding: 4px; font-size: 12px; text-align: center;">
+              ${file.name}
+            </div>
+          `;
+          preview.appendChild(div);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
   });
 }
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
   setupPropertyForm();
-  setupPropertyEditForm();
-  setupPropertyDeleteHandler();
+  setupImagePreview('propertyImages', 'imagePreview');
+  
+  // Load properties if on dashboard or property list page
+  if (document.getElementById('propertyList')) {
+    loadOwnerProperties().then(result => {
+      if (result.success) {
+        renderPropertyList(result.properties, 'propertyList', true);
+      } else {
+        document.getElementById('propertyList').innerHTML = `<p class="error">${result.message}</p>`;
+      }
+    });
+  }
 });
 
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    handleCreateProperty,
-    handleUpdateProperty,
-    handleDeleteProperty,
-    getMyProperties,
-    validatePropertyData,
+    handlePropertyCreation,
+    loadOwnerProperties,
+    loadAllProperties,
+    loadPropertyById,
+    handlePropertyUpdate,
+    handlePropertyDelete,
+    renderPropertyList,
+    editProperty,
+    deleteProperty,
     setupPropertyForm,
-    setupPropertyEditForm,
-    setupPropertyDeleteHandler
+    escapeHtml
   };
-} 
+}
+
+// Expose functions globally for use in HTML files
+window.loadPropertyById = loadPropertyById;
+window.handlePropertyUpdate = handlePropertyUpdate;
+window.handlePropertyDelete = handlePropertyDelete;
+window.renderPropertyList = renderPropertyList;
+window.deletePropertyImage = deletePropertyImage;
+window.loadOwnerProperties = loadOwnerProperties;
+window.loadAllProperties = loadAllProperties;

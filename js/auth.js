@@ -1,11 +1,7 @@
 /**
- * WorkHive - Authentication Module
+ * WorkHive - Authentication Module (Phase 2)
  * 
- * Issue #1-5: User Registration
- * Issue #30-31: Login functionality
- * 
- * Phase 1: Simple authentication (check email exists, plain text password)
- * Phase 2: JWT authentication with bcrypt password hashing
+ * Phase 2: Uses backend API with JWT tokens and bcrypt password hashing
  */
 
 // VALIDATION FUNCTIONS
@@ -15,14 +11,12 @@ function validateName(name) {
 
 function validateEmail(email) {
   if (!email) return false;
-  // Basic email format validation
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email.trim());
 }
 
 function validatePhone(phone) {
   if (!phone) return false;
-  // Phone should be 10-15 digits
   const phoneRegex = /^\d{10,15}$/;
   return phoneRegex.test(phone.trim());
 }
@@ -37,9 +31,7 @@ function validatePassword(password) {
 
 /**
  * REGISTRATION HANDLER
- * 
- * @param {Object} userData - User registration data
- * @returns {Object} - { success: boolean, message: string, user: Object|null }
+ * Uses backend API for registration
  */
 async function handleRegistration(userData) {
   const { firstName, middleName, lastName, email, phone, role, password } = userData;
@@ -64,26 +56,28 @@ async function handleRegistration(userData) {
     return { success: false, message: 'Password must be at least 6 characters.', user: null };
   }
   
-  // Check if email already exists
-  const existingUser = getUserByEmail(email);
-  if (existingUser) {
-    return { success: false, message: 'An account with this email already exists.', user: null };
+  // Call backend API
+  const result = await apiRegister({
+    firstName,
+    middleName: middleName || '',
+    lastName,
+    email,
+    phone,
+    password,
+    role
+  });
+  
+  if (result.success) {
+    // Token and user are already stored by apiRegister()
+    return { success: true, message: 'Account created successfully! Welcome to WorkHive.', user: result.data.user };
+  } else {
+    return { success: false, message: result.message, user: null };
   }
-  
-  // Create new user
-  const newUser = createUser(firstName, middleName || '', lastName, email, phone, role, password);
-  
-  // Auto-login after registration
-  setCurrentUser(newUser);
-  
-  return { success: true, message: 'Account created successfully! Welcome to WorkHive.', user: newUser };
 }
 
 /**
  * LOGIN HANDLER
- * 
- * @param {Object} loginData - Login credentials
- * @returns {Object} - { success: boolean, message: string, user: Object|null }
+ * Uses backend API for authentication with JWT
  */
 async function handleLogin(loginData) {
   const { email, password } = loginData;
@@ -97,56 +91,41 @@ async function handleLogin(loginData) {
     return { success: false, message: 'Please enter a valid email address.', user: null };
   }
   
-  // Find user by email (Issue #31: Simple auth - check if email exists)
-  const user = getUserByEmail(email);
+  // Call backend API
+  const result = await apiLogin({ email, password });
   
-  if (!user) {
-    return { success: false, message: 'No account found with this email address.', user: null };
+  if (result.success) {
+    return { 
+      success: true, 
+      message: 'Login successful!', 
+      user: result.data.user
+    };
+  } else {
+    return { success: false, message: result.message, user: null };
   }
-  
-  // Phase 1: Simple password check (plain text)
-  // Phase 2: Use bcrypt.compare(password, user.password)
-  if (user.password !== password) {
-    return { success: false, message: 'Incorrect password. Please try again.', user: null };
-  }
-  
-  // Set current user session
-  setCurrentUser(user);
-  
-  return { 
-    success: true, 
-    message: 'Login successful!', 
-    user: {
-      id: user.id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      role: user.role
-    }
-  };
 }
 
 /**
  * LOGOUT HANDLER
  */
-function handleLogout() {
+async function handleLogout() {
+  // Call backend API to logout
+  await apiLogout();
+  
+  // Clear local storage
   clearCurrentUser();
-  // Redirect to WorkHive root index.html
-  // Calculate path depth from WorkHive directory
+  
+  // Redirect to landing page
   const path = window.location.pathname;
   const segments = path.split('/').filter(s => s && s !== '');
   
-  // Find WorkHive in the path
   let workhiveIndex = segments.indexOf('WorkHive');
   if (workhiveIndex === -1) {
-    // Fallback: go up 2 levels
     window.location.href = '../../index.html';
     return;
   }
   
-  // Count directory levels from WorkHive (exclude the filename)
   const levelsToGoUp = segments.length - workhiveIndex - 2;
-  
   let upPath = '';
   for (let i = 0; i < levelsToGoUp; i++) {
     upPath += '../';
@@ -178,8 +157,6 @@ function requireLogin(redirectUrl = '../auth/login.html') {
 
 /**
  * REQUIRE ROLE - Redirect if user doesn't have required role
- * @param {string} requiredRole - 'owner' or 'coworker'
- * @param {string} redirectUrl - Where to redirect if role doesn't match
  */
 function requireRole(requiredRole, redirectUrl) {
   const user = getCurrentUser();
@@ -196,7 +173,6 @@ function requireRole(requiredRole, redirectUrl) {
 
 /**
  * SETUP NAVIGATION BASED ON USER ROLE
- * Call this on every page to set up role-based navigation
  */
 function setupRoleBasedNavigation() {
   const user = getCurrentUser();
@@ -204,34 +180,26 @@ function setupRoleBasedNavigation() {
   
   if (!navContainer) return;
   
-  // Check if navigation already has correct links (avoid overwriting)
   const existingLinks = navContainer.querySelectorAll('a');
   let hasCorrectLinks = false;
   
   if (existingLinks.length > 0) {
     const hrefs = Array.from(existingLinks).map(a => a.href);
-    // Check if Search Workspaces link exists (coworker page)
-    // OR if dashboard/properties links exist (owner page)
-    // OR if login.html is used for logout
     hasCorrectLinks = hrefs.some(h => h.includes('search.html') || 
                                        h.includes('dashboard.html') || 
                                        h.includes('properties/create.html') ||
                                        h.includes('login.html'));
   }
   
-  // Only overwrite if links are missing or incorrect
   if (hasCorrectLinks) {
-    // Update user greeting, but preserve existing structure
     const greetingEl = navContainer.querySelector('.user-greeting');
     if (greetingEl && user) {
       greetingEl.textContent = `Welcome, ${user.firstName}`;
     }
     
-    // Setup logout handler only on links with "Log Out" text
     const logoutLinks = navContainer.querySelectorAll('a');
     logoutLinks.forEach(link => {
       const text = link.textContent.trim();
-      // Only add logout handler to links that say "Log Out"
       if (text === 'Log Out' && !link.getAttribute('onclick')) {
         link.addEventListener('click', function(e) {
           e.preventDefault();
@@ -240,11 +208,10 @@ function setupRoleBasedNavigation() {
       }
     });
     
-    return; // Don't overwrite existing correct navigation
+    return;
   }
   
   if (!user) {
-    // Logged out navigation
     navContainer.innerHTML = `
       <ul>
         <li><a href="../index.html">Home</a></li>
@@ -253,7 +220,6 @@ function setupRoleBasedNavigation() {
       </ul>
     `;
   } else if (user.role === 'owner') {
-    // Owner navigation
     navContainer.innerHTML = `
       <ul>
         <li><a href="../index.html">Home</a></li>
@@ -264,7 +230,6 @@ function setupRoleBasedNavigation() {
       </ul>
     `;
   } else if (user.role === 'coworker') {
-    // Coworker navigation
     navContainer.innerHTML = `
       <ul>
         <li><a href="../index.html">Home</a></li>
@@ -278,7 +243,6 @@ function setupRoleBasedNavigation() {
 
 /**
  * REGISTER FORM SUBMIT HANDLER
- * Attach this to the registration form
  */
 function setupRegistrationForm() {
   const form = document.getElementById('registerForm');
@@ -302,7 +266,6 @@ function setupRegistrationForm() {
     
     if (result.success) {
       showMessage(result.message, 'success');
-      // Redirect based on role
       setTimeout(() => {
         if (userData.role === 'owner') {
           window.location.href = '../owner/dashboard.html';
@@ -336,7 +299,6 @@ function setupLoginForm() {
     
     if (result.success) {
       showMessage(result.message, 'success');
-      // Redirect based on role
       setTimeout(() => {
         if (result.user.role === 'owner') {
           window.location.href = '../owner/dashboard.html';
@@ -365,7 +327,6 @@ function showMessage(message, type) {
     messageEl.textContent = message;
     messageEl.style.display = 'block';
     
-    // Auto-hide after 5 seconds
     setTimeout(() => {
       messageEl.style.display = 'none';
     }, 5000);
@@ -376,10 +337,7 @@ function showMessage(message, type) {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-  // Setup role-based navigation on all pages
   setupRoleBasedNavigation();
-  
-  // Setup forms if they exist on the page
   setupRegistrationForm();
   setupLoginForm();
 });
