@@ -16,7 +16,6 @@
       <nav class="main-nav">
         <ul>
           <li><a href="dashboard.html">My Dashboard</a></li>
-          <li><a href="properties/create.html">Add Property</a></li>
           <li><span class="user-greeting">Welcome, Owner</span></li>
           <li><a href="javascript:void(0)" onclick="handleLogout()">Log Out</a></li>
         </ul>
@@ -84,7 +83,7 @@
   </footer>
 
   <!-- Scripts -->
-  <script src="../data/data.js"></script>
+  <script src="../js/api.js"></script>
   <script src="../js/auth.js"></script>
   <script src="../js/properties.js"></script>
   <script src="../js/workspaces.js"></script>
@@ -103,20 +102,44 @@
     });
 
     // Load and display dashboard data
-    function loadDashboardData() {
-      // Load properties
-      const properties = getMyProperties();
+    async function loadDashboardData() {
       const propertiesList = document.getElementById('propertiesList');
       const propertiesEmpty = document.getElementById('propertiesEmpty');
+      const workspacesList = document.getElementById('workspacesList');
+      const workspacesEmpty = document.getElementById('workspacesEmpty');
       
-      if (properties.length === 0) {
-        propertiesList.innerHTML = '';
-        propertiesEmpty.style.display = 'block';
-      } else {
+      // Load properties
+      const propertiesResult = await loadOwnerProperties();
+      
+      // Load workspaces first so we can count them per property
+      const workspacesResult = await getMyWorkspaces();
+      
+      // Count workspaces per property
+      const workspaceCountByProperty = {};
+      if (workspacesResult.success && workspacesResult.workspaces) {
+        workspacesResult.workspaces.forEach(w => {
+          const propId = w.propertyId?._id || w.propertyId;
+          if (propId) {
+            workspaceCountByProperty[propId] = (workspaceCountByProperty[propId] || 0) + 1;
+          }
+        });
+      }
+      
+      if (propertiesResult.success && propertiesResult.properties && propertiesResult.properties.length > 0) {
         propertiesEmpty.style.display = 'none';
-        propertiesList.innerHTML = properties.map(p => `
+        propertiesList.innerHTML = propertiesResult.properties.map(p => {
+          const photos = p.photos || [];
+          const mainImage = photos && photos.length > 0 ? photos[0].url : null;
+          const workspaceCount = workspaceCountByProperty[p._id] || 0;
+          return `
           <div class="card">
-            <div class="card-image-placeholder">Property Photo</div>
+            <div style="width: 100%; height: 200px; overflow: hidden; border-radius: 8px 8px 0 0;">
+              ${mainImage ? `
+                <img src="${API_BASE_URL.replace('/api', '')}${mainImage}" style="width: 100%; height: 100%; object-fit: cover;">
+              ` : `
+                <div class="card-image-placeholder">Property Photo</div>
+              `}
+            </div>
             <div class="card-body">
               <h4>${escapeHtml(p.address)}</h4>
               <div class="card-meta">&#128205; ${escapeHtml(p.neighborhood)}</div>
@@ -125,31 +148,36 @@
                 ${p.hasParking ? '<span class="badge badge-blue">Parking</span> ' : ''}
                 ${p.hasPublicTransit ? '<span class="badge badge-blue">Transit</span>' : ''}
               </div>
-              <div class="card-price">${p.workspaces.length} Workspace${p.workspaces.length !== 1 ? 's' : ''}</div>
+              <div class="card-price">${workspaceCount} Workspace${workspaceCount !== 1 ? 's' : ''}</div>
             </div>
             <div class="card-actions">
-              <a href="properties/edit.html?id=${p.id}" class="btn btn-secondary btn-sm">Edit</a>
-              <button class="btn btn-danger btn-sm" data-delete-property="${p.id}">Delete</button>
+              <a href="properties/edit.html?id=${p._id}" class="btn btn-secondary btn-sm">Edit</a>
+              <button class="btn btn-danger btn-sm" onclick="deletePropertyFromDashboard('${p._id}')">Delete</button>
             </div>
           </div>
-        `).join('');
+        `;
+        }).join('');
+      } else {
+        propertiesList.innerHTML = '';
+        propertiesEmpty.style.display = 'block';
       }
       
-      // Load workspaces
-      const workspaces = getMyWorkspaces();
-      const workspacesList = document.getElementById('workspacesList');
-      const workspacesEmpty = document.getElementById('workspacesEmpty');
-      
-      if (workspaces.length === 0) {
-        workspacesList.innerHTML = '';
-        workspacesEmpty.style.display = 'block';
-      } else {
+      if (workspacesResult.success && workspacesResult.workspaces && workspacesResult.workspaces.length > 0) {
         workspacesEmpty.style.display = 'none';
-        workspacesList.innerHTML = workspaces.map(w => {
+        workspacesList.innerHTML = workspacesResult.workspaces.map(w => {
           const leaseTermText = w.leaseTerm.charAt(0).toUpperCase() + w.leaseTerm.slice(1);
+          const property = w.propertyId || {};
+          const photos = w.photos || [];
+          const mainImage = photos && photos.length > 0 ? photos[0].url : null;
           return `
           <div class="card">
-            <div class="card-image-placeholder">Workspace Photo</div>
+            <div style="width: 100%; height: 200px; overflow: hidden; border-radius: 8px 8px 0 0;">
+              ${mainImage ? `
+                <img src="${API_BASE_URL.replace('/api', '')}${mainImage}" style="width: 100%; height: 100%; object-fit: cover;">
+              ` : `
+                <div class="card-image-placeholder">Workspace Photo</div>
+              `}
+            </div>
             <div class="card-body">
               <h4>${escapeHtml(w.type.charAt(0).toUpperCase() + w.type.slice(1))}</h4>
               <div class="card-meta">
@@ -161,19 +189,20 @@
               <div class="card-price">$${w.price} <span>/ ${leaseTermText.toLowerCase()}</span></div>
             </div>
             <div class="card-actions">
-              <a href="workspaces/edit.html?id=${w.id}" class="btn btn-secondary btn-sm">Edit</a>
-              <button class="btn btn-danger btn-sm" data-delete-workspace="${w.id}">Delete</button>
+              <a href="workspaces/edit.html?id=${w._id}" class="btn btn-secondary btn-sm">Edit</a>
+              <button class="btn btn-danger btn-sm" onclick="deleteWorkspaceFromDashboard('${w._id}')">Delete</button>
             </div>
           </div>
         `;
         }).join('');
+      } else {
+        workspacesList.innerHTML = '';
+        workspacesEmpty.style.display = 'block';
       }
       
-      // Setup delete handlers
-      setupPropertyDeleteHandler();
-      setupWorkspaceDeleteHandler();
-      
-      console.log('Dashboard loaded - Properties:', properties.length, 'Workspaces:', workspaces.length);
+      console.log('Dashboard loaded - Properties:', propertiesResult.success ? propertiesResult.properties.length : 0, 'Workspaces:', workspacesResult.success ? workspacesResult.workspaces.length : 0);
+      console.log('Properties result:', propertiesResult);
+      console.log('Workspaces result:', workspacesResult);
     }
 
     // Escape HTML
@@ -188,6 +217,54 @@
       if (!dateStr) return 'N/A';
       const date = new Date(dateStr);
       return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    // Delete property from dashboard
+    async function deletePropertyFromDashboard(id) {
+      if (!confirm('Are you sure you want to delete this property? All associated workspaces will also be deleted.')) {
+        return;
+      }
+      
+      const result = await apiDeleteProperty(id);
+      
+      if (result.success) {
+        showMessage(result.message, 'success');
+        await loadDashboardData();
+      } else {
+        showMessage(result.message, 'error');
+      }
+    }
+
+    // Delete workspace from dashboard
+    async function deleteWorkspaceFromDashboard(id) {
+      if (!confirm('Are you sure you want to delete this workspace?')) {
+        return;
+      }
+      
+      const result = await apiDeleteWorkspace(id);
+      
+      if (result.success) {
+        showMessage(result.message, 'success');
+        await loadDashboardData();
+      } else {
+        showMessage(result.message, 'error');
+      }
+    }
+
+    // Show message helper
+    function showMessage(message, type) {
+      const messageEl = document.getElementById('dashboardMessage');
+      if (messageEl) {
+        messageEl.className = `alert alert-${type}`;
+        messageEl.textContent = message;
+        messageEl.style.display = 'block';
+        
+        setTimeout(() => {
+          messageEl.style.display = 'none';
+        }, 5000);
+      } else {
+        alert(message);
+      }
     }
   </script>
 

@@ -16,7 +16,6 @@
       <nav class="main-nav">
         <ul>
           <li><a href="../dashboard.html">My Dashboard</a></li>
-          <li><a href="create.html">Add Property</a></li>
           <li><span class="user-greeting">Welcome, Owner</span></li>
           <li><a href="javascript:void(0)" onclick="handleLogout()">Log Out</a></li>
         </ul>
@@ -72,6 +71,22 @@
         <button type="submit" class="btn btn-primary" style="width: auto; padding: 12px 32px;">Save Changes</button>
         <a href="../dashboard.html" class="btn" style="background: #eee; color: #333; padding: 12px 32px;">Cancel</a>
       </div>
+      
+      <div class="form-section">
+        <h3>Property Photos (Optional)</h3>
+        
+        <div id="currentImages" style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;">
+          <!-- Current images will be populated by JavaScript -->
+        </div>
+        
+        <div class="form-group">
+          <label for="editImages">Add More Images</label>
+          <input type="file" id="editImages" name="images" accept="image/*" multiple style="width: 100%;">
+          <div class="hint">Upload up to 5 more images (jpeg, jpg, png, gif, webp). Max 5MB each.</div>
+        </div>
+        
+        <div id="newImagePreview" style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;"></div>
+      </div>
     </form>
 
   </div>
@@ -82,17 +97,174 @@
   </footer>
 
   <!-- Scripts -->
-  <script src="../../data/data.js"></script>
+  <script src="../../js/api.js"></script>
   <script src="../../js/auth.js"></script>
   <script src="../../js/properties.js"></script>
 
   <script>
+    // Get property ID from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const propertyId = urlParams.get('id');
+
     // Require owner role on this page
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', async function() {
       const user = getCurrentUser();
       if (!user || user.role !== 'owner') {
         window.location.href = '../../auth/login.html';
+        return;
       }
+      
+      if (!propertyId) {
+        showMessage('Invalid property ID.', 'error');
+        return;
+      }
+      
+      // Load property data and populate form
+      console.log('Getting property by ID:', propertyId);
+      const result = await loadPropertyById(propertyId);
+      console.log('Load property result:', result);
+      
+      if (!result.success || !result.property) {
+        showMessage(result.message || 'Property not found.', 'error');
+        return;
+      }
+      
+      const property = result.property;
+      console.log('Loaded property:', property);
+      
+      // Populate form fields
+      const editAddress = document.getElementById('editAddress');
+      const editNeighborhood = document.getElementById('editNeighborhood');
+      const editSquareFeet = document.getElementById('editSquareFeet');
+      const editHasParking = document.getElementById('editHasParking');
+      const editHasPublicTransit = document.getElementById('editHasPublicTransit');
+      
+      if (editAddress) editAddress.value = property.address || '';
+      if (editNeighborhood) editNeighborhood.value = property.neighborhood || '';
+      if (editSquareFeet) editSquareFeet.value = property.squareFeet || '';
+      if (editHasParking) editHasParking.checked = property.hasParking || false;
+      if (editHasPublicTransit) editHasPublicTransit.checked = property.hasPublicTransit || false;
+      
+      // Display current photos with delete buttons
+      const currentPhotos = property.photos || [];
+      const currentPhotosContainer = document.getElementById('currentImages');
+      if (currentPhotos && currentPhotos.length > 0) {
+        currentPhotosContainer.innerHTML = currentPhotos.map((photo, index) => `
+          <div style="width: 120px; height: 120px; border-radius: 4px; overflow: hidden; border: 1px solid #ddd; position: relative;">
+            <img src="${API_BASE_URL.replace('/api', '')}${photo.url}" style="width: 100%; height: 100%; object-fit: cover;">
+            <button type="button" onclick="handleDeletePropertyImage('${property._id}', ${index})" style="position: absolute; top: 2px; right: 2px; background: rgba(255,0,0,0.8); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px; line-height: 1;">×</button>
+          </div>
+        `).join('');
+      } else {
+        currentPhotosContainer.innerHTML = '<p style="color: #666; font-size: 14px;">No photos uploaded yet.</p>';
+      }
+      
+      // Photo preview for new uploads
+      const editImagesInput = document.getElementById('editImages');
+      const newPhotoPreview = document.getElementById('newImagePreview');
+      
+      if (editImagesInput && newPhotoPreview) {
+        editImagesInput.addEventListener('change', function(e) {
+          const files = e.target.files;
+          newPhotoPreview.innerHTML = '';
+          
+          if (files && files.length > 0) {
+            Array.from(files).forEach((file) => {
+              if (!file.type.match('image.*')) {
+                showMessage('Please select image files only.', 'error');
+                return;
+              }
+              
+              if (file.size > 5 * 1024 * 1024) {
+                showMessage(`File ${file.name} is too large. Max 5MB.`, 'error');
+                return;
+              }
+              
+              const reader = new FileReader();
+              reader.onload = function(e) {
+                const div = document.createElement('div');
+                div.style.cssText = 'width: 120px; height: 120px; border: 1px solid #ddd; border-radius: 4px; overflow: hidden; position: relative;';
+                div.innerHTML = `
+                  <img src="${e.target.result}" style="width: 100%; height: 100%; object-fit: cover;">
+                  <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.6); color: white; padding: 2px; font-size: 10px; text-align: center;">
+                    ${file.name}
+                  </div>
+                `;
+                newPhotoPreview.appendChild(div);
+              };
+              reader.readAsDataURL(file);
+             }); // End forEach
+           } // End if files
+         }); // End addEventListener
+       } // End if editImagesInput && newPhotoPreview
+      
+      // Setup form submit handler
+      document.getElementById('propertyEditForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const updates = {
+          address: formData.get('address'),
+          neighborhood: formData.get('neighborhood'),
+          squareFeet: formData.get('squareFeet'),
+          hasParking: formData.get('hasParking') === 'on',
+          hasPublicTransit: formData.get('hasPublicTransit') === 'on'
+        };
+        
+        console.log('Updating property with data:', updates);
+        
+        // First update property details
+        const updateResult = await handlePropertyUpdate(propertyId, updates);
+        console.log('Update result:', updateResult);
+        
+        if (!updateResult.success) {
+          showMessage(updateResult.message, 'error');
+          return;
+        }
+        
+        // Then upload new photos if any
+        const newImages = document.getElementById('editImages').files;
+        if (newImages && newImages.length > 0) {
+          const token = localStorage.getItem('authToken');
+          const photoFormData = new FormData();
+          for (let i = 0; i < newImages.length; i++) {
+            photoFormData.append('images', newImages[i]);
+          }
+          
+          const uploadResponse = await fetch(`${API_BASE_URL}/properties/${propertyId}/photos`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            },
+            body: photoFormData
+          });
+          
+          const uploadResult = await uploadResponse.json();
+          if (uploadResult.success) {
+            showMessage('Photos uploaded successfully!', 'success');
+          } else {
+            showMessage(uploadResult.message || 'Failed to upload photos', 'error');
+          }
+        }
+        
+        setTimeout(() => {
+          window.location.href = '../dashboard.html';
+        }, 1500);
+      }); // End addEventListener
+      
+      // Delete image handler
+      window.handleDeletePropertyImage = async function(propertyId, imageIndex) {
+        const result = await deletePropertyImage(propertyId, imageIndex);
+        if (result.success) {
+          showMessage('Image deleted successfully', 'success');
+          // Reload page to show updated images
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        } else {
+          showMessage(result.message || 'Failed to delete image', 'error');
+        }
+      };
     });
   </script>
 

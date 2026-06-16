@@ -16,7 +16,6 @@
       <nav class="main-nav">
         <ul>
           <li><a href="../dashboard.html">My Dashboard</a></li>
-          <li><a href="../properties/create.html">Add Property</a></li>
           <li><span class="user-greeting">Welcome, Owner</span></li>
           <li><a href="javascript:void(0)" onclick="handleLogout()">Log Out</a></li>
         </ul>
@@ -93,6 +92,29 @@
           <input type="number" id="editPrice" name="price" placeholder="350" min="0" step="0.01" required>
           <div class="hint">Price per lease term (e.g., $350/month)</div>
         </div>
+
+        <!-- Description -->
+        <div class="form-group">
+          <label for="editDescription">Description</label>
+          <textarea id="editDescription" name="description" rows="4" placeholder="Describe your workspace..." maxlength="1000" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; font-family: inherit; resize: vertical;"></textarea>
+          <div class="hint">Optional description (max 1000 characters)</div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h3>Workspace Photos (Optional)</h3>
+        
+        <div id="currentImages" style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;">
+          <!-- Current images will be populated by JavaScript -->
+        </div>
+        
+        <div class="form-group">
+          <label for="editImages">Add More Images</label>
+          <input type="file" id="editImages" name="images" accept="image/*" multiple style="width: 100%;">
+          <div class="hint">Upload up to 5 more images (jpeg, jpg, png, gif, webp). Max 5MB each.</div>
+        </div>
+        
+        <div id="newImagePreview" style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;"></div>
       </div>
 
       <div class="form-actions" style="display: flex; gap: 12px; margin-bottom: 40px;">
@@ -109,13 +131,13 @@
   </footer>
 
   <!-- Scripts -->
-  <script src="../../data/data.js"></script>
+  <script src="../../js/api.js"></script>
   <script src="../../js/auth.js"></script>
   <script src="../../js/workspaces.js"></script>
 
   <script>
     // Initialize edit page - load workspace and populate form
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', async function() {
       const user = getCurrentUser();
       if (!user || user.role !== 'owner') {
         window.location.href = '../../auth/login.html';
@@ -124,7 +146,7 @@
       
       // Get workspace ID from URL
       const urlParams = new URLSearchParams(window.location.search);
-      const workspaceId = parseInt(urlParams.get('id'));
+      const workspaceId = urlParams.get('id'); // MongoDB uses string IDs, not numbers
       
       if (!workspaceId) {
         showMessage('Invalid workspace ID.', 'error');
@@ -132,22 +154,62 @@
       }
       
       // Load workspace data
-      const workspace = getWorkspaceById(workspaceId);
-      if (!workspace) {
-        showMessage('Workspace not found.', 'error');
+      console.log('Getting workspace by ID:', workspaceId);
+      const result = await getWorkspaceById(workspaceId);
+      console.log('Get workspace result:', result);
+      
+      if (!result.success || !result.workspace) {
+        showMessage(result.message || 'Workspace not found.', 'error');
         return;
       }
+      const workspace = result.workspace;
+      console.log('Loaded workspace:', workspace);
       
       // Populate property dropdown with current property selected
-      populatePropertyDropdown(workspace.propertyId);
+      // workspace.propertyId is an object with _id from API response
+      const propertyId = workspace.propertyId?._id || workspace.propertyId;
+      console.log('Property ID to select:', propertyId);
+      await populatePropertyDropdown(propertyId);
       
       // Pre-fill other form fields
-      document.getElementById('editWorkspaceType').value = workspace.type;
-      document.getElementById('editSeatingCapacity').value = workspace.seatingCapacity;
-      document.getElementById('editSmokingAllowed').checked = workspace.smokingAllowed;
-      document.getElementById('editAvailabilityDate').value = workspace.availabilityDate;
-      document.getElementById('editLeaseTerm').value = workspace.leaseTerm;
-      document.getElementById('editPrice').value = workspace.price;
+      const editWorkspaceType = document.getElementById('editWorkspaceType');
+      const editSeatingCapacity = document.getElementById('editSeatingCapacity');
+      const editSmokingAllowed = document.getElementById('editSmokingAllowed');
+      const editAvailabilityDate = document.getElementById('editAvailabilityDate');
+      const editLeaseTerm = document.getElementById('editLeaseTerm');
+      const editPrice = document.getElementById('editPrice');
+      const editDescription = document.getElementById('editDescription');
+      
+      if (editWorkspaceType) editWorkspaceType.value = workspace.type || '';
+      if (editSeatingCapacity) editSeatingCapacity.value = workspace.seatingCapacity || '';
+      if (editSmokingAllowed) editSmokingAllowed.checked = workspace.smokingAllowed || false;
+      
+      // Format date for date input (YYYY-MM-DD)
+      if (workspace.availabilityDate && editAvailabilityDate) {
+        const date = new Date(workspace.availabilityDate);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        editAvailabilityDate.value = `${year}-${month}-${day}`;
+      }
+      
+      if (editLeaseTerm) editLeaseTerm.value = workspace.leaseTerm || '';
+      if (editPrice) editPrice.value = workspace.price || '';
+      if (editDescription) editDescription.value = workspace.description || '';
+      
+      // Display current photos with delete buttons
+      const currentPhotos = workspace.photos || [];
+      const currentPhotosContainer = document.getElementById('currentImages');
+      if (currentPhotos && currentPhotos.length > 0) {
+        currentPhotosContainer.innerHTML = currentPhotos.map((photo, index) => `
+          <div style="width: 100px; height: 100px; border-radius: 4px; overflow: hidden; border: 1px solid #ddd; position: relative;">
+            <img src="${API_BASE_URL.replace('/api', '')}${photo.url}" style="width: 100%; height: 100%; object-fit: cover;">
+            <button type="button" onclick="handleDeleteWorkspacePhoto('${workspace._id}', ${index})" style="position: absolute; top: 2px; right: 2px; background: rgba(255,0,0,0.8); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px; line-height: 1;">×</button>
+          </div>
+        `).join('');
+      } else {
+        currentPhotosContainer.innerHTML = '<p style="color: #666; font-size: 14px;">No photos uploaded yet.</p>';
+      }
       
       // Setup form submit handler
       document.getElementById('workspaceEditForm').addEventListener('submit', async function(e) {
@@ -161,20 +223,103 @@
           smokingAllowed: formData.get('smokingAllowed') === 'on',
           availabilityDate: formData.get('availabilityDate'),
           leaseTerm: formData.get('leaseTerm'),
-          price: formData.get('price')
+          price: formData.get('price'),
+          description: formData.get('description') || ''
         };
         
+        console.log('Updating workspace with data:', updates);
         const result = await handleUpdateWorkspace(workspaceId, updates);
+        console.log('Update result:', result);
         
-        if (result.success) {
-          showMessage(result.message, 'success');
-          setTimeout(() => {
-            window.location.href = '../dashboard.html';
-          }, 1500);
-        } else {
+        if (!result.success) {
           showMessage(result.message, 'error');
+          return;
         }
+        
+        // Upload new images if any
+        const newImages = document.getElementById('editImages').files;
+        if (newImages && newImages.length > 0) {
+          const token = localStorage.getItem('authToken');
+          const imageFormData = new FormData();
+          for (let i = 0; i < newImages.length; i++) {
+            imageFormData.append('images', newImages[i]);
+          }
+          
+          const uploadResponse = await fetch(`${API_BASE_URL}/workspaces/${workspaceId}/photos`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            },
+            body: imageFormData
+          });
+          
+          const uploadResult = await uploadResponse.json();
+          if (uploadResult.success) {
+            showMessage('Workspace updated and images uploaded successfully!', 'success');
+          } else {
+            showMessage(uploadResult.message || 'Workspace updated but image upload failed', 'error');
+          }
+        } else {
+          showMessage(result.message, 'success');
+        }
+        
+        setTimeout(() => {
+          window.location.href = '../dashboard.html';
+        }, 1500);
       });
+      
+      // Image preview for new uploads
+      const editImageInput = document.getElementById('editImages');
+      const newImagePreview = document.getElementById('newImagePreview');
+      
+      if (editImageInput && newImagePreview) {
+        editImageInput.addEventListener('change', function(e) {
+          const files = e.target.files;
+          newImagePreview.innerHTML = '';
+          
+          if (files && files.length > 0) {
+            Array.from(files).forEach((file) => {
+              if (!file.type.match('image.*')) {
+                showMessage('Please select image files only.', 'error');
+                return;
+              }
+              
+              if (file.size > 5 * 1024 * 1024) {
+                showMessage(`File ${file.name} is too large. Max 5MB.`, 'error');
+                return;
+              }
+              
+              const reader = new FileReader();
+              reader.onload = function(e) {
+                const div = document.createElement('div');
+                div.style.cssText = 'width: 100px; height: 100px; border: 1px solid #ddd; border-radius: 4px; overflow: hidden; position: relative;';
+                div.innerHTML = `
+                  <img src="${e.target.result}" style="width: 100%; height: 100%; object-fit: cover;">
+                  <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.6); color: white; padding: 2px; font-size: 10px; text-align: center;">
+                    ${file.name}
+                  </div>
+                `;
+                newImagePreview.appendChild(div);
+              };
+              reader.readAsDataURL(file);
+             }); // End forEach
+           } // End if files
+         }); // End addEventListener
+       } // End if editImageInput && newImagePreview
+      
+      // Delete image handler
+      window.handleDeleteWorkspaceImage = async function(workspaceId, imageIndex) {
+        const result = await deleteWorkspaceImage(workspaceId, imageIndex);
+        if (result.success) {
+          showMessage('Image deleted successfully', 'success');
+          // Reload page to show updated images
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        } else {
+          showMessage(result.message || 'Failed to delete image', 'error');
+        }
+      };
     });
   </script>
 

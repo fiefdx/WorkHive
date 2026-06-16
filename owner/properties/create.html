@@ -16,7 +16,6 @@
       <nav class="main-nav">
         <ul>
           <li><a href="../dashboard.html">My Dashboard</a></li>
-          <li><a href="create.html">Add Property</a></li>
           <li><span class="user-greeting">Welcome, Owner</span></li>
           <li><a href="javascript:void(0)" onclick="handleLogout()">Log Out</a></li>
         </ul>
@@ -71,6 +70,18 @@
         </div>
       </div>
 
+      <div class="form-section">
+        <h3>Property Photos (Optional)</h3>
+        
+        <div class="form-group">
+          <label for="propertyImages">Upload Images</label>
+          <input type="file" id="propertyImages" name="images" accept="image/*" multiple style="width: 100%;">
+          <div class="hint">Upload up to 5 images (jpeg, jpg, png, gif, webp). Max 5MB each.</div>
+        </div>
+        
+        <div id="imagePreview" style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;"></div>
+      </div>
+
       <div class="form-actions" style="display: flex; gap: 12px; margin-bottom: 40px;">
         <button type="submit" class="btn btn-primary" style="width: auto; padding: 12px 32px;">List Property</button>
         <a href="../dashboard.html" class="btn" style="background: #eee; color: #333; padding: 12px 32px;">Cancel</a>
@@ -85,7 +96,7 @@
   </footer>
 
   <!-- Scripts -->
-  <script src="../../data/data.js"></script>
+  <script src="../../js/api.js"></script>
   <script src="../../js/auth.js"></script>
   <script src="../../js/properties.js"></script>
 
