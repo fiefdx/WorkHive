@@ -4,10 +4,10 @@
  * Issue #56: Update frontend to handle authentication with JWT tokens
  * Connects to Node.js backend API
  * 
- * Base URL: http://workhive-1ph3.onrender.com/api
+ * Base URL: https://workhive-1ph3.onrender.com/api
  */
 
-const API_BASE_URL = 'http://workhive-1ph3.onrender.com/api';
+const API_BASE_URL = 'https://workhive-1ph3.onrender.com/api';
 
 /**
  * API HELPER FUNCTION
