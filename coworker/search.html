@@ -113,7 +113,7 @@
   </footer>
 
   <!-- Scripts -->
-  <script src="../data/data.js"></script>
+  <script src="../js/api.js"></script>
   <script src="../js/auth.js"></script>
 
   <script>
@@ -124,14 +124,6 @@
         window.location.href = '../../auth/login.html';
         return;
       }
-      
-      // Ensure demo data is loaded before searching
-      if (workspaces.length === 0) {
-        console.log('Loading demo data...');
-        loadDemoData();
-      }
-      
-      console.log('Workspaces available:', workspaces.length);
       
       // Initial search to show all workspaces
       performSearch();
@@ -157,38 +149,58 @@
       performSearch();
     });
 
-    // Perform search with current filter values
-    function performSearch() {
-      // Ensure demo data is loaded
-      if (workspaces.length === 0) {
-        loadDemoData();
-      }
-      
-      console.log('Total workspaces in data:', workspaces.length);
+    // Perform search with current filter values using API
+    async function performSearch() {
+      console.log('Performing search...');
       
       // Collect filter values
-      const filters = {
-        address: document.getElementById('searchAddress').value,
-        minCapacity: document.getElementById('minCapacity').value,
-        leaseTerm: document.getElementById('leaseTerm').value,
-        minPrice: document.getElementById('minPrice').value,
-        maxPrice: document.getElementById('maxPrice').value,
-        availDate: document.getElementById('availDate').value,
-        hasParking: document.getElementById('filterParking').checked,
-        hasTransit: document.getElementById('filterTransit').checked,
-        smokingAllowed: document.getElementById('filterSmoking').checked
-      };
+      const filters = {};
+      
+      const address = document.getElementById('searchAddress').value;
+      if (address) filters.neighborhood = address;
+      
+      const minCapacity = document.getElementById('minCapacity').value;
+      if (minCapacity) filters.minSeatingCapacity = minCapacity;
+      
+      const leaseTerm = document.getElementById('leaseTerm').value;
+      if (leaseTerm) filters.leaseTerm = leaseTerm;
+      
+      const minPrice = document.getElementById('minPrice').value;
+      if (minPrice) filters.minPrice = minPrice;
+      
+      const maxPrice = document.getElementById('maxPrice').value;
+      if (maxPrice) filters.maxPrice = maxPrice;
+      
+      const availDate = document.getElementById('availDate').value;
+      if (availDate) filters.availabilityDate = availDate;
+      
+      const hasParking = document.getElementById('filterParking').checked;
+      if (hasParking) filters.hasParking = true;
+      
+      const hasTransit = document.getElementById('filterTransit').checked;
+      if (hasTransit) filters.hasPublicTransit = true;
+      
+      const smokingAllowed = document.getElementById('filterSmoking').checked;
+      if (smokingAllowed) filters.smokingAllowed = true;
       
       console.log('Search filters:', filters);
-      const results = filterWorkspaces(filters);
-      console.log('Filtered results count:', results.length);
       
-      // Enrich results with property and owner data for display
-      const enrichedResults = results.map(w => enrichWorkspaceWithProperty(w)).filter(w => w !== null);
+      // Call API to search workspaces
+      const result = await searchWorkspaces(filters);
       
-      console.log('Enriched results count:', enrichedResults.length);
+      console.log('Search result:', result);
       
-      displayResults(enrichedResults);
+      if (result.success) {
+        displayResults(result.workspaces);
+      } else {
+        displayResults([]);
+        document.getElementById('resultsContainer').innerHTML = `
+          <div class="dashboard-empty" style="grid-column: 1/-1;">
+            <div class="empty-icon">&#128269;</div>
+            <p>Error loading workspaces: ${result.message}</p>
+          </div>
+        `;
+      }
     }
 
     // Display search results as cards
@@ -214,20 +226,28 @@
       }
       
       container.innerHTML = workspaces.map(w => {
-        const property = w.property;
+        const property = w.propertyId || {};
         const leaseTermText = w.leaseTerm.charAt(0).toUpperCase() + w.leaseTerm.slice(1);
+        const photos = w.photos || [];
+        const mainImage = photos && photos.length > 0 ? photos[0].url : null;
         
         return `
           <div class="card">
-            <div class="card-image-placeholder">Workspace Photo</div>
+            <div style="width: 100%; height: 200px; overflow: hidden; border-radius: 8px 8px 0 0;">
+              ${mainImage ? `
+                <img src="${API_BASE_URL.replace('/api', '')}${mainImage}" style="width: 100%; height: 100%; object-fit: cover;">
+              ` : `
+                <div class="card-image-placeholder">Workspace Photo</div>
+              `}
+            </div>
             <div class="card-body">
               <h4>
-                <a href="workspace/details.html?id=${w.id}" style="color: inherit; text-decoration: none;">
+                <a href="workspace/details.html?id=${w._id}" style="color: inherit; text-decoration: none;">
                   ${escapeHtml(w.type.charAt(0).toUpperCase() + w.type.slice(1))}
                 </a>
               </h4>
-              <div class="card-meta">&#128205; ${escapeHtml(property.address)}, ${escapeHtml(property.neighborhood)}</div>
-              <div class="card-meta">&#128200; ${property.squareFeet.toLocaleString()} sq ft property</div>
+              <div class="card-meta">&#128205; ${escapeHtml(property.address || 'N/A')}, ${escapeHtml(property.neighborhood || 'N/A')}</div>
+              <div class="card-meta">&#128200; ${property.squareFeet ? property.squareFeet.toLocaleString() : 'N/A'} sq ft property</div>
               <div class="card-meta">
                 <span class="badge badge-blue">${escapeHtml(w.type.charAt(0).toUpperCase() + w.type.slice(1))}</span>
                 <span class="badge badge-gray">Seats: ${w.seatingCapacity}</span>
@@ -240,7 +260,7 @@
               <div class="card-price">$${w.price} <span>/ ${leaseTermText.toLowerCase()}</span></div>
             </div>
             <div class="card-actions">
-              <a href="workspace/details.html?id=${w.id}" class="btn btn-secondary btn-sm" style="width: 100%;">View Details</a>
+              <a href="workspace/details.html?id=${w._id}" class="btn btn-secondary btn-sm" style="width: 100%;">View Details</a>
             </div>
           </div>
         `;

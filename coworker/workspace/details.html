@@ -45,8 +45,19 @@
       <!-- MAIN CONTENT AREA -->
       <div class="detail-main">
 
-        <!-- Image Placeholder -->
-        <div class="detail-image-placeholder">Workspace Photo Gallery (3-5 images)</div>
+        <!-- Image Gallery -->
+        <div id="imageGallery" style="position: relative; margin-bottom: 20px;">
+          <!-- Main gallery container -->
+          <div id="galleryMain" style="position: relative; width: 100%; height: 400px; border-radius: 8px; overflow: hidden; background: #f5f5f5;">
+            <!-- Images will be populated by JavaScript -->
+            <div class="detail-image-placeholder" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">Workspace Photo Gallery</div>
+          </div>
+          <!-- Navigation buttons -->
+          <button type="button" id="galleryPrev" style="position: absolute; top: 50%; left: 10px; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; font-size: 20px; line-height: 1; display: none;">&#8249;</button>
+          <button type="button" id="galleryNext" style="position: absolute; top: 50%; right: 10px; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; font-size: 20px; line-height: 1; display: none;">&#8250;</button>
+          <!-- Photo counter -->
+          <div id="galleryCounter" style="position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.6); color: white; padding: 4px 12px; border-radius: 4px; font-size: 12px; display: none;">1 / 1</div>
+        </div>
 
         <div class="detail-content">
 
@@ -112,13 +123,11 @@
             </div>
           </div>
 
-          <!-- Description (bonus area for future expansion) -->
+          <!-- Description -->
           <div class="detail-section">
             <h4>Description</h4>
-            <p style="font-size: 14px; color: #555; line-height: 1.7;">
-              Spacious workspace with natural lighting, high-speed internet access,
-              and shared kitchen facilities. Perfect for small teams or focused
-              individual work.
+            <p id="workspaceDescription" style="font-size: 14px; color: #555; line-height: 1.7;">
+              No description provided.
             </p>
           </div>
 
@@ -137,7 +146,6 @@
           <div style="font-size: 14px; color: #666;" id="alternatePricing">
             Pricing details
           </div>
-          <button class="btn btn-primary">Contact Owner</button>
         </div>
 
         <div class="owner-contact">
@@ -173,14 +181,14 @@
   </footer>
 
   <!-- Scripts -->
-  <script src="../../data/data.js"></script>
+  <script src="../../js/api.js"></script>
   <script src="../../js/auth.js"></script>
 
   <script>
     const urlParams = new URLSearchParams(window.location.search);
-    const workspaceId = parseInt(urlParams.get('id'));
+    const workspaceId = urlParams.get('id');
 
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', async function() {
       // Require login
       const user = getCurrentUser();
       if (!user) {
@@ -195,39 +203,94 @@
       }
       
       // Load workspace details
-      loadWorkspaceDetails(workspaceId);
+      await loadWorkspaceDetails(workspaceId);
     });
 
-    // Load and display workspace details
-    function loadWorkspaceDetails(id) {
-      const workspace = getWorkspaceById(id);
+    // Load and display workspace details using API
+    async function loadWorkspaceDetails(id) {
+      console.log('Loading workspace details for ID:', id);
       
-      if (!workspace) {
+      const result = await getWorkspaceById(id);
+      console.log('Workspace result:', result);
+      
+      if (!result.success || !result.workspace) {
         document.getElementById('loadingMessage').style.display = 'none';
         document.getElementById('errorMessage').style.display = 'block';
         return;
       }
       
-      // Enrich with property and owner data
-      const enriched = enrichWorkspaceWithProperty(workspace);
-      
-      if (!enriched || !enriched.property || !enriched.owner) {
-        document.getElementById('loadingMessage').style.display = 'none';
-        document.getElementById('errorMessage').style.display = 'block';
-        return;
-      }
+      const workspace = result.workspace;
       
       // Display data
-      displayWorkspaceDetails(enriched);
+      displayWorkspaceDetails(workspace);
     }
 
     // Display workspace details on the page
     function displayWorkspaceDetails(data) {
+      const property = data.propertyId || {};
+      const owner = property.ownerId || {};
       const leaseTermText = data.leaseTerm.charAt(0).toUpperCase() + data.leaseTerm.slice(1);
+      
+      // Display photos with gallery slider
+      const photos = data.photos || [];
+      const galleryMain = document.getElementById('galleryMain');
+      const galleryPrev = document.getElementById('galleryPrev');
+      const galleryNext = document.getElementById('galleryNext');
+      const galleryCounter = document.getElementById('galleryCounter');
+      
+      if (photos && photos.length > 0) {
+        let currentPhotoIndex = 0;
+        
+        // Show first photo
+        galleryMain.innerHTML = `
+          <img src="${API_BASE_URL.replace('/api', '')}${photos[0].url}" style="width: 100%; height: 100%; object-fit: cover;" id="currentPhoto">
+        `;
+        
+        // Show navigation buttons
+        galleryPrev.style.display = photos.length > 1 ? 'block' : 'none';
+        galleryNext.style.display = photos.length > 1 ? 'block' : 'none';
+        galleryCounter.style.display = photos.length > 1 ? 'block' : 'none';
+        galleryCounter.textContent = `1 / ${photos.length}`;
+        
+        // Navigation handlers
+        galleryPrev.addEventListener('click', () => {
+          currentPhotoIndex = (currentPhotoIndex - 1 + photos.length) % photos.length;
+          updateGallery();
+        });
+        
+        galleryNext.addEventListener('click', () => {
+          currentPhotoIndex = (currentPhotoIndex + 1) % photos.length;
+          updateGallery();
+        });
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'ArrowLeft') {
+            currentPhotoIndex = (currentPhotoIndex - 1 + photos.length) % photos.length;
+            updateGallery();
+          } else if (e.key === 'ArrowRight') {
+            currentPhotoIndex = (currentPhotoIndex + 1) % photos.length;
+            updateGallery();
+          }
+        });
+        
+        function updateGallery() {
+          const currentPhoto = document.getElementById('currentPhoto');
+          if (currentPhoto) {
+            currentPhoto.src = `${API_BASE_URL.replace('/api', '')}${photos[currentPhotoIndex].url}`;
+          }
+          galleryCounter.textContent = `${currentPhotoIndex + 1} / ${photos.length}`;
+        }
+      } else {
+        galleryMain.innerHTML = '<div class="detail-image-placeholder" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">Workspace Photo Gallery</div>';
+        galleryPrev.style.display = 'none';
+        galleryNext.style.display = 'none';
+        galleryCounter.style.display = 'none';
+      }
       
       // Title and address
       document.getElementById('detailTitle').textContent = data.type.charAt(0).toUpperCase() + data.type.slice(1);
-      document.getElementById('detailAddress').innerHTML = `&#128205; ${escapeHtml(data.property.address)}, ${escapeHtml(data.property.neighborhood)}`;
+      document.getElementById('detailAddress').innerHTML = `&#128205; ${escapeHtml(property.address || 'N/A')}, ${escapeHtml(property.neighborhood || 'N/A')}`;
       
       // Workspace specs
       document.getElementById('specType').textContent = data.type.charAt(0).toUpperCase() + data.type.slice(1);
@@ -237,26 +300,30 @@
       document.getElementById('specLease').textContent = leaseTermText;
       document.getElementById('specPrice').textContent = `$${data.price}/${leaseTermText.toLowerCase()}`;
       
+      // Description
+      const description = data.description || '';
+      document.getElementById('workspaceDescription').textContent = description || 'No description provided.';
+      
       // Property details
-      document.getElementById('propAddress').textContent = data.property.address;
-      document.getElementById('propNeighborhood').textContent = data.property.neighborhood;
-      document.getElementById('propSize').textContent = `${data.property.squareFeet.toLocaleString()} sq ft`;
-      document.getElementById('propParking').textContent = data.property.hasParking ? 'Yes' : 'No';
-      document.getElementById('propTransit').textContent = data.property.hasPublicTransit ? 'Yes' : 'No';
+      document.getElementById('propAddress').textContent = property.address || 'N/A';
+      document.getElementById('propNeighborhood').textContent = property.neighborhood || 'N/A';
+      document.getElementById('propSize').textContent = property.squareFeet ? `${property.squareFeet.toLocaleString()} sq ft` : 'N/A';
+      document.getElementById('propParking').textContent = property.hasParking ? 'Yes' : 'No';
+      document.getElementById('propTransit').textContent = property.hasPublicTransit ? 'Yes' : 'No';
       
       // Sidebar price
       document.getElementById('sidebarPrice').innerHTML = `$${data.price} <span>/ ${leaseTermText.toLowerCase()}</span>`;
       document.getElementById('alternatePricing').innerHTML = getAlternatePricing(data.price, data.leaseTerm);
       
       // Owner contact
-      document.getElementById('ownerName').innerHTML = `<strong>Name:</strong> ${escapeHtml(data.owner.firstName)} ${escapeHtml(data.owner.lastName)}`;
-      document.getElementById('ownerEmail').innerHTML = `<strong>Email:</strong> ${escapeHtml(data.owner.email)}`;
-      document.getElementById('ownerPhone').innerHTML = `<strong>Phone:</strong> ${formatPhone(data.owner.phone)}`;
+      document.getElementById('ownerName').innerHTML = `<strong>Name:</strong> ${escapeHtml(owner.firstName || 'N/A')} ${escapeHtml(owner.lastName || 'N/A')}`;
+      document.getElementById('ownerEmail').innerHTML = `<strong>Email:</strong> ${escapeHtml(owner.email || 'N/A')}`;
+      document.getElementById('ownerPhone').innerHTML = `<strong>Phone:</strong> ${formatPhone(owner.phone || '')}`;
       
       // Amenities
       const amenities = [];
-      if (data.property.hasParking) amenities.push('&#128736; Parking Garage Available');
-      if (data.property.hasPublicTransit) amenities.push('&#128666; Public Transit Nearby');
+      if (property.hasParking) amenities.push('&#128736; Parking Garage Available');
+      if (property.hasPublicTransit) amenities.push('&#128666; Public Transit Nearby');
       amenities.push('&#128187; High-Speed Internet');
       amenities.push('&#9749; Shared Kitchen');
       
