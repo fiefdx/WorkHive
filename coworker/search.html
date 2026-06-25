@@ -97,8 +97,24 @@
     </div>
 
     <!-- Results area -->
-    <div id="resultsInfo" style="margin-bottom: 16px; font-size: 14px; color: #666;">
-      Showing <strong>0</strong> workspaces
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <div id="resultsInfo" style="font-size: 14px; color: #666;">
+        Showing <strong>0</strong> workspaces
+      </div>
+      
+      <!-- Sorting controls -->
+      <div style="display: flex; gap: 12px; align-items: center;">
+        <label for="sortBy" style="font-size: 14px; color: #666; margin: 0;">Sort by:</label>
+        <select id="sortBy" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+          <option value="createdAt">Newest First</option>
+          <option value="price">Price (Low to High)</option>
+          <option value="price" data-order="desc">Price (High to Low)</option>
+          <option value="rating">Highest Rated</option>
+          <option value="availability">Earliest Availability</option>
+          <option value="availability" data-order="desc">Latest Availability</option>
+        </select>
+        <button id="applySortBtn" class="btn btn-primary" style="width: auto; padding: 8px 16px; font-size: 14px;">Apply</button>
+      </div>
     </div>
 
     <div id="resultsContainer" class="cards-grid">
@@ -144,8 +160,14 @@
       document.getElementById('filterParking').checked = false;
       document.getElementById('filterTransit').checked = false;
       document.getElementById('filterSmoking').checked = false;
+      document.getElementById('sortBy').value = 'createdAt';
       
       // Perform search with empty filters
+      performSearch();
+    });
+    
+    // Apply sorting
+    document.getElementById('applySortBtn').addEventListener('click', function() {
       performSearch();
     });
 
@@ -182,6 +204,16 @@
       
       const smokingAllowed = document.getElementById('filterSmoking').checked;
       if (smokingAllowed) filters.smokingAllowed = true;
+      
+      // Collect sorting values
+      const sortBySelect = document.getElementById('sortBy');
+      const sortBy = sortBySelect.value;
+      const sortOption = sortBySelect.options[sortBySelect.selectedIndex];
+      const sortOrder = sortOption.getAttribute('data-order') || 'asc';
+      
+      // Add sorting to filters
+      filters.sortBy = sortBy;
+      filters.order = sortOrder;
       
       console.log('Search filters:', filters);
       
@@ -230,6 +262,14 @@
         const leaseTermText = w.leaseTerm.charAt(0).toUpperCase() + w.leaseTerm.slice(1);
         const photos = w.photos || [];
         const mainImage = photos && photos.length > 0 ? photos[0].url : null;
+        const rating = w.averageRating || 0;
+        const ratingCount = w.ratingCount || 0;
+        
+        // Generate star rating display
+        let starHtml = '';
+        for (let i = 0; i < 5; i++) {
+          starHtml += i < Math.round(rating) ? '&#9733;' : '&#9734;';
+        }
         
         return `
           <div class="card">
@@ -257,6 +297,12 @@
                 ${property.hasParking ? '<span class="badge badge-blue">Parking</span> ' : ''}
                 ${property.hasPublicTransit ? '<span class="badge badge-blue">Transit</span>' : ''}
               </div>
+              ${rating > 0 ? `
+                <div class="card-meta" style="font-size: 14px; color: #666;">
+                  <span style="color: #ffc107; font-size: 16px;">${starHtml}</span>
+                  <span style="margin-left: 4px;">${rating.toFixed(1)} (${ratingCount})</span>
+                </div>
+              ` : ''}
               <div class="card-price">$${w.price} <span>/ ${leaseTermText.toLowerCase()}</span></div>
             </div>
             <div class="card-actions">

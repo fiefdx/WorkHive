@@ -131,6 +131,55 @@
             </p>
           </div>
 
+          <!-- Ratings & Reviews Section -->
+          <div class="detail-section" id="reviewsSection" style="border-top: 1px solid #eee; padding-top: 24px; margin-top: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+              <h4 style="margin: 0;">Ratings & Reviews</h4>
+              <div id="ratingSummary" style="text-align: right;">
+                <div style="font-size: 32px; font-weight: bold; color: #222;" id="averageRating">-</div>
+                <div style="font-size: 14px; color: #666;" id="ratingCount">No reviews yet</div>
+              </div>
+            </div>
+            
+            <!-- Star Rating Display -->
+            <div id="starRatingDisplay" style="margin-bottom: 20px; font-size: 24px; color: #ffc107;">
+              <!-- Stars will be populated by JavaScript -->
+            </div>
+            
+            <!-- Write Review Form (only for coworkers) -->
+            <div id="writeReviewSection" style="margin-bottom: 30px; padding: 20px; background: #f9f9f9; border-radius: 8px;">
+              <h5 style="margin-top: 0;">Write a Review</h5>
+              <form id="reviewForm">
+                <div style="margin-bottom: 16px;">
+                  <label style="display: block; margin-bottom: 8px; font-weight: 500;">Your Rating *</label>
+                  <div id="reviewStarRating" style="font-size: 28px; color: #ddd; cursor: pointer;">
+                    <span data-rating="1">&#9734;</span>
+                    <span data-rating="2">&#9734;</span>
+                    <span data-rating="3">&#9734;</span>
+                    <span data-rating="4">&#9734;</span>
+                    <span data-rating="5">&#9734;</span>
+                  </div>
+                  <input type="hidden" id="reviewRating" value="0">
+                  <div id="ratingError" style="color: #dc3545; font-size: 12px; margin-top: 4px; display: none;">Please select a rating</div>
+                </div>
+                
+                <div style="margin-bottom: 16px;">
+                  <label for="reviewComment" style="display: block; margin-bottom: 8px; font-weight: 500;">Your Review (optional)</label>
+                  <textarea id="reviewComment" rows="4" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; resize: vertical;" placeholder="Share your experience with this workspace..."></textarea>
+                  <div style="font-size: 12px; color: #999; margin-top: 4px;">Maximum 500 characters</div>
+                </div>
+                
+                <button type="submit" id="submitReviewBtn" class="btn btn-primary" style="width: auto;">Submit Review</button>
+              </form>
+            </div>
+            
+            <!-- Reviews List -->
+            <div id="reviewsList">
+              <!-- Reviews will be populated by JavaScript -->
+              <div style="text-align: center; padding: 20px; color: #999;">No reviews yet. Be the first to review!</div>
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -202,6 +251,69 @@
         return;
       }
       
+      // Initialize star rating interaction
+      initializeStarRating();
+      
+      // Initialize review form submit handler
+      const reviewForm = document.getElementById('reviewForm');
+      if (reviewForm) {
+        reviewForm.addEventListener('submit', async function(e) {
+          e.preventDefault();
+          
+          const rating = parseInt(document.getElementById('reviewRating').value);
+          const comment = document.getElementById('reviewComment').value.trim();
+          
+          // Validate rating
+          if (rating < 1 || rating > 5) {
+            document.getElementById('ratingError').style.display = 'block';
+            return;
+          }
+          
+          const token = localStorage.getItem('authToken');
+          const wsId = new URLSearchParams(window.location.search).get('id');
+          
+          if (!wsId) {
+            alert('Workspace ID not found');
+            return;
+          }
+          
+          try {
+            const submitBtn = document.getElementById('submitReviewBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting...';
+            
+            const result = await fetch(`${API_BASE_URL}/reviews`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                workspaceId: wsId,
+                rating,
+                comment
+              })
+            });
+            
+            const data = await result.json();
+            
+            if (data.success) {
+              alert('Review submitted successfully!');
+              // Reload page to show new review
+              window.location.reload();
+            } else {
+              alert('Error: ' + data.message);
+            }
+          } catch (error) {
+            console.error('Error submitting review:', error);
+            alert('Error submitting review. Please try again.');
+          } finally {
+            document.getElementById('submitReviewBtn').disabled = false;
+            document.getElementById('submitReviewBtn').textContent = 'Submit Review';
+          }
+        });
+      }
+      
       // Load workspace details
       await loadWorkspaceDetails(workspaceId);
     });
@@ -223,6 +335,15 @@
       
       // Display data
       displayWorkspaceDetails(workspace);
+      
+      // Show reviews section (it's always visible, just displays "No reviews yet" if empty)
+      document.getElementById('reviewsSection').style.display = 'block';
+      
+      // Load reviews
+      await loadReviews(workspace._id);
+      
+      // Check if user has already reviewed
+      await checkUserReview(workspace._id);
     }
 
     // Display workspace details on the page
@@ -364,6 +485,196 @@
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
+    }
+    
+    // Load reviews for workspace
+    async function loadReviews(workspaceId) {
+      try {
+        const result = await fetch(`${API_BASE_URL}/reviews/workspace/${workspaceId}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const data = await result.json();
+        
+        if (data.success && data.data.reviews) {
+          displayReviews(data.data.reviews, data.count);
+        }
+      } catch (error) {
+        console.error('Error loading reviews:', error);
+      }
+    }
+    
+    // Display reviews
+    function displayReviews(reviews, count) {
+      const reviewsList = document.getElementById('reviewsList');
+      const ratingSummary = document.getElementById('ratingSummary');
+      const averageRatingEl = document.getElementById('averageRating');
+      const ratingCountEl = document.getElementById('ratingCount');
+      const starRatingDisplay = document.getElementById('starRatingDisplay');
+      
+      if (reviews.length === 0) {
+        reviewsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">No reviews yet. Be the first to review!</div>';
+        averageRatingEl.textContent = '-';
+        ratingCountEl.textContent = 'No reviews yet';
+        starRatingDisplay.innerHTML = '';
+        return;
+      }
+      
+      // Calculate average rating
+      const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
+      const averageRating = (totalRating / reviews.length).toFixed(1);
+      
+      // Update rating summary
+      averageRatingEl.textContent = averageRating;
+      ratingCountEl.textContent = `${count} review${count > 1 ? 's' : ''}`;
+      
+      // Display star rating
+      const fullStars = Math.floor(averageRating);
+      const hasHalfStar = averageRating % 1 >= 0.5;
+      let starsHtml = '';
+      for (let i = 0; i < fullStars; i++) {
+        starsHtml += '&#9733;'; // Full star
+      }
+      if (hasHalfStar && fullStars < 5) {
+        starsHtml += '&#9733;'; // Will display as full for simplicity
+      }
+      while (starsHtml.length < 5) {
+        starsHtml += '&#9734;'; // Empty star
+      }
+      starRatingDisplay.innerHTML = starsHtml;
+      
+      // Display individual reviews
+      const user = getCurrentUser();
+      
+      reviewsList.innerHTML = reviews.map(review => {
+        const reviewUser = review.userId || {};
+        const userName = `${reviewUser.firstName || ''} ${reviewUser.lastName || ''}`.trim() || 'Anonymous';
+        const reviewDate = formatDate(review.createdAt);
+        const canDelete = user && reviewUser._id === user.id;
+        
+        let starsHtml = '';
+        for (let i = 0; i < 5; i++) {
+          starsHtml += i < review.rating ? '&#9733;' : '&#9734;';
+        }
+        
+        return `
+          <div style="background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+              <div>
+                <div style="font-weight: 600; color: #222;">${escapeHtml(userName)}</div>
+                <div style="font-size: 12px; color: #999;">${reviewDate}</div>
+              </div>
+              <div style="font-size: 18px; color: #ffc107;">${starsHtml}</div>
+            </div>
+            ${review.comment ? `<p style="margin: 0; color: #555; line-height: 1.6;">${escapeHtml(review.comment)}</p>` : ''}
+            ${canDelete ? `<button onclick="deleteReview('${review._id}')" style="margin-top: 12px; background: none; border: none; color: #dc3545; cursor: pointer; font-size: 12px; text-decoration: underline;">Delete Review</button>` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+    
+    // Check if user has already reviewed
+    async function checkUserReview(workspaceId) {
+      try {
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+          // No token, hide form (user not logged in)
+          document.getElementById('writeReviewSection').style.display = 'none';
+          return;
+        }
+        
+        const result = await fetch(`${API_BASE_URL}/reviews/my-review/${workspaceId}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        const data = await result.json();
+        
+        if (data.success && data.data.review) {
+          // User already reviewed, hide form and show message
+          document.getElementById('writeReviewSection').innerHTML = `
+            <div style="text-align: center; padding: 20px; color: #666;">
+              <strong>You have already reviewed this workspace.</strong>
+              <br>Thank you for your feedback!
+            </div>
+          `;
+        }
+        // If no review exists, the form stays visible
+      } catch (error) {
+        console.error('Error checking review:', error);
+        // On error, keep the form visible so user can still submit
+      }
+    }
+    
+ 
+    
+    // Delete review
+    async function deleteReview(reviewId) {
+      if (!confirm('Are you sure you want to delete your review?')) {
+        return;
+      }
+      
+      const token = localStorage.getItem('authToken');
+      
+      try {
+        const result = await fetch(`${API_BASE_URL}/reviews/${reviewId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        const data = await result.json();
+        
+        if (data.success) {
+          alert('Review deleted successfully!');
+          window.location.reload();
+        } else {
+          alert('Error: ' + data.message);
+        }
+      } catch (error) {
+        console.error('Error deleting review:', error);
+        alert('Error deleting review. Please try again.');
+      }
+    }
+    
+    // Initialize star rating interaction
+    function initializeStarRating() {
+      const starRatingSpans = document.querySelectorAll('#reviewStarRating span');
+      starRatingSpans.forEach(span => {
+        span.addEventListener('click', function() {
+          const rating = parseInt(this.getAttribute('data-rating'));
+          document.getElementById('reviewRating').value = rating;
+          document.getElementById('ratingError').style.display = 'none';
+          updateReviewStars(rating);
+        });
+        
+        span.addEventListener('mouseenter', function() {
+          const rating = parseInt(this.getAttribute('data-rating'));
+          updateReviewStars(rating);
+        });
+        
+        span.addEventListener('mouseleave', function() {
+          const rating = parseInt(document.getElementById('reviewRating').value);
+          updateReviewStars(rating);
+        });
+      });
+    }
+    
+    function updateReviewStars(rating) {
+      const starRatingSpans = document.querySelectorAll('#reviewStarRating span');
+      starRatingSpans.forEach(span => {
+        const starRating = parseInt(span.getAttribute('data-rating'));
+        span.innerHTML = starRating <= rating ? '&#9733;' : '&#9734;';
+        span.style.color = starRating <= rating ? '#ffc107' : '#ddd';
+      });
     }
   </script>
 
