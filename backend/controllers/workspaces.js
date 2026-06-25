@@ -117,13 +117,27 @@ exports.searchWorkspaces = async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const sortDirection = order === 'asc' ? 1 : -1;
 
+    // Build sort object - support multiple sort fields
+    let sortObj = {};
+    if (sortBy === 'rating') {
+      sortObj = { averageRating: sortDirection, ratingCount: sortDirection };
+    } else if (sortBy === 'price') {
+      sortObj = { price: sortDirection };
+    } else if (sortBy === 'availability') {
+      sortObj = { availabilityDate: sortDirection };
+    } else if (sortBy === 'createdAt') {
+      sortObj = { createdAt: sortDirection };
+    } else {
+      sortObj = { [sortBy]: sortDirection };
+    }
+
     const workspaces = await Workspace.find(query)
       .populate('propertyId', 'address neighborhood squareFeet hasParking hasPublicTransit')
       .populate({
         path: 'propertyId',
         populate: { path: 'ownerId', select: 'firstName lastName email phone' }
       })
-      .sort({ [sortBy]: sortDirection })
+      .sort(sortObj)
       .limit(parseInt(limit))
       .skip(skip);
 
@@ -198,9 +212,20 @@ exports.getWorkspaceById = async (req, res) => {
       });
     }
 
+    // Get reviews for this workspace
+    const Review = require('../models/Review');
+    const reviews = await Review.find({ workspaceId: workspace._id })
+      .populate('userId', 'firstName lastName email')
+      .select('-userId.password')
+      .sort({ createdAt: -1 });
+
     res.status(200).json({
       success: true,
-      data: { workspace }
+      data: { 
+        workspace,
+        reviews,
+        reviewCount: reviews.length
+      }
     });
   } catch (error) {
     console.error('GetWorkspaceById error:', error);

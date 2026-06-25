@@ -19,6 +19,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/properties', require('./routes/properties'));
 app.use('/api/workspaces', require('./routes/workspaces'));
+app.use('/api/reviews', require('./routes/reviews'));
 
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
